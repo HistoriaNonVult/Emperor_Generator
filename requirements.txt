@@ -1,0 +1,10 @@
+random
+re
+tkinter
+os
+opencc
+sys
+webbrowser
+fnmatch
+customtkinter
+openai
