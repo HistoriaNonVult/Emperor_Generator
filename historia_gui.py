@@ -11,6 +11,7 @@ import sys
 import webbrowser
 import fnmatch
 import customtkinter as ctk
+import openai
 can_access_google = None
 class EmperorGenerator:
     def __init__(self):
