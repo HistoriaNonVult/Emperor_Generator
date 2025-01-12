@@ -11,7 +11,9 @@ import sys
 import webbrowser
 import fnmatch
 import customtkinter as ctk
-import openai
+from tkinter import scrolledtext
+import threading
+from openai import OpenAI
 can_access_google = None
 class EmperorGenerator:
     def __init__(self):
@@ -193,7 +195,180 @@ class EmperorGenerator:
         
         return sorted_emperors
 
-
+class AIChatWindow:
+    def __init__(self, parent, api_key):
+        """初始化聊天窗口"""
+        self.parent = parent
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url="https://api.deepseek.com"
+        )
+        
+        # 创建窗口
+        self.window = tk.Toplevel(parent)
+        self.window.title("AI历史顾问（请保持网络连接)")
+        self.window.geometry("380x500")  # 更小的窗口尺寸
+        
+        # 设置窗口背景色为暖色调
+        self.window.configure(bg='#FFF8F3')  # 米白色背景
+        
+        # 创建界面元素
+        self._create_widgets()
+        
+        # 绑定事件
+        self._bind_events()
+        self.has_icon = False
+        try:
+            if getattr(sys, 'frozen', False):
+                # 打包后的路径
+                base_path = sys._MEIPASS
+            else:
+                # 开发环境路径
+                base_path = os.path.abspath(".")
+                
+            icon_path = os.path.join(base_path, "assets", "images", "seal.ico")
+            self.window.iconbitmap(icon_path)
+            self.has_icon = True
+        except Exception as e:
+            print(f"无法加载图标: {e}")
+    
+    def _create_widgets(self):
+        """创建界面元素"""
+        # 标题栏
+        title_label = ttk.Label(
+            self.window,
+            text="AI历史顾问",
+            font=('微软雅黑', 14),
+            foreground='#8B4513',  # 暖棕色
+            background='#FFF8F3'
+        )
+        title_label.pack(pady=(10,5))
+        
+        # 聊天显示区域
+        self.chat_display = scrolledtext.ScrolledText(
+            self.window,
+            wrap=tk.WORD,
+            state=tk.DISABLED,
+            font=('微软雅黑', 9),
+            bg='#FFFAF5',  # 更浅的米色
+            fg='#5C4033',  # 深棕色文字
+            relief='flat',
+            height=22,
+            padx=8,
+            pady=8
+        )
+        self.chat_display.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
+        
+        # 底部输入区域
+        input_frame = ttk.Frame(self.window)
+        input_frame.pack(fill=tk.X, padx=10, pady=(0,10))
+        
+        # 输入框
+        self.message_entry = ctk.CTkEntry(
+            input_frame,
+            font=('微软雅黑', 11),
+            height=40,
+            placeholder_text="请提问...",
+            border_width=1,
+            corner_radius=4,
+            fg_color='#FFFAF5',  # 浅米色
+            text_color='#5C4033',  # 深棕色
+            placeholder_text_color='#B38B6D'  # 浅棕色
+        )
+        self.message_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,5))
+        
+        # 发送按钮
+        self.send_button = ctk.CTkButton(
+            input_frame,
+            text="发送",
+            command=self._send_message,
+            font=('微软雅黑', 11),
+            height=40,
+            width=50,
+            fg_color='#B38B6D',  # 暖棕色
+            hover_color='#8B4513',  # 深棕色
+            corner_radius=4
+        )
+        self.send_button.pack(side=tk.RIGHT)
+    
+    def _bind_events(self):
+        """绑定事件"""
+        self.message_entry.bind('<Return>', lambda e: self._send_message())
+        self.window.protocol("WM_DELETE_WINDOW", self._on_closing)
+    
+    def _send_message(self):
+        """发送消息"""
+        message = self.message_entry.get().strip()
+        if not message:
+            return
+            
+        self._set_input_state(tk.DISABLED)
+        self.message_entry.delete(0, tk.END)
+        self._update_display(f"你: {message}\n", 'user')
+        
+        threading.Thread(
+            target=self._get_ai_response,
+            args=(message,),
+            daemon=True
+        ).start()
+    
+    def _get_ai_response(self, message):
+        """获取AI响应"""
+        try:
+            response = self.client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度等问题。请用中文回答。"
+                    },
+                    {"role": "user", "content": message}
+                ],
+                stream=False
+            )
+            
+            self._update_display(f"AI: {response.choices[0].message.content}\n\n", 'ai')
+            
+        except Exception as e:
+            self._update_display(f"错误: {str(e)}\n", 'error')
+        finally:
+            self._set_input_state(tk.NORMAL)
+    
+    def _update_display(self, text, msg_type='system'):
+        """更新聊天显示"""
+        def _update():
+            self.chat_display.config(state=tk.NORMAL)
+            
+            # 暖色调的消息样式
+            tag = f'msg_{msg_type}'
+            self.chat_display.tag_config('user', foreground='#8B4513')  # 深棕色
+            self.chat_display.tag_config('ai', foreground='#5C4033')    # 中棕色
+            self.chat_display.tag_config('error', foreground='#CD5C5C') # 暖红色
+            
+            self.chat_display.insert(tk.END, text, tag)
+            self.chat_display.config(state=tk.DISABLED)
+            self.chat_display.see(tk.END)
+        
+        if threading.current_thread() is threading.main_thread():
+            _update()
+        else:
+            self.window.after(0, _update)
+    
+    def _set_input_state(self, state):
+        """设置输入状态"""
+        def _update():
+            self.message_entry.configure(state=state)
+            self.send_button.configure(state=state)
+        
+        if threading.current_thread() is threading.main_thread():
+            _update()
+        else:
+            self.window.after(0, _update)
+    
+    def _on_closing(self):
+        """窗口关闭时的处理"""
+        self.window.destroy()
+        
 class EmperorApp:
     def __init__(self, root):
         self.root = root
@@ -201,7 +376,7 @@ class EmperorApp:
         
         # 设置初始透明度为0
         self.root.attributes('-alpha', 0.0)
-        
+        self.chat_window = None
         # 设置图标
         self.has_icon = False
         try:
@@ -256,7 +431,6 @@ class EmperorApp:
             alpha += 0.2
             self.root.attributes('-alpha', alpha)
             self.root.after(50, self.fade_in)
-        
         # 定义皇帝数据
         emperor_text = """秦朝:
 1. 秦始皇（嬴政）[始皇帝] {前221年-前210年}
@@ -787,8 +961,7 @@ class EmperorApp:
                 command=self.resort_results  # 添加排序回调
             )
             rb.pack(side="left", padx=5)
-            self.sort_buttons.append(rb)
-            
+        self.sort_buttons.append(rb)
         # 添加统计分析按钮
         self.analyze_button = ctk.CTkButton(  # 使用 CTkButton 而不是 ttk.Button
             sort_frame,
@@ -805,6 +978,23 @@ class EmperorApp:
             height=32
         )
         self.analyze_button.pack(side="right", padx=20)
+
+        # AI助手按钮
+        self.chat_button = ctk.CTkButton(
+            sort_frame,
+            text="AI助手",
+            command=self.show_chat_window,
+            font=('华文行楷', 16),   # 改用典雅的华文行楷字体
+            fg_color='#2C3E50',    # 深蓝灰色背景
+            hover_color='#34495E',  # 悬停时的颜色
+            text_color='#7DF9FF',   # 电光蓝色文字
+            corner_radius=8,        # 圆角
+            border_width=2,
+            border_color='#00CED1', # 暗青色边框
+            width=100,
+            height=32
+        )
+        self.chat_button.pack(side="right", padx=5)
         
         # 文本显示区域
         text_frame = ttk.Frame(self.root)
@@ -1352,7 +1542,19 @@ class EmperorApp:
         popup.grab_set()
         
         return popup
-
+    def show_chat_window(self):
+        """显示聊天窗口"""
+        if hasattr(self, 'chat_window') and self.chat_window is not None:
+            self.chat_window.window.lift()  # 如果窗口已存在，将其提升到前面
+            self.chat_window.window.focus_force()
+        else:
+            # 创建新的聊天窗口
+            try:
+                # 使用固定的API密钥
+                api_key = 'sk-0937b0ede5ea49ae9ceaa9cecfe8a690'
+                self.chat_window = AIChatWindow(self.root, api_key)
+            except Exception as e:
+                messagebox.showerror("错误", f"无法打开聊天窗口：{str(e)}")
     def get_icon_path(self):
         """获取图标的正确路径"""
         try:
