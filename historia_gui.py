@@ -305,7 +305,6 @@ class AIChatWindow:
         self._set_input_state(tk.DISABLED)
         self.message_entry.delete(0, tk.END)
         self._update_display(f"你: {message}\n", 'user')
-        
         threading.Thread(
             target=self._get_ai_response,
             args=(message,),
@@ -327,8 +326,12 @@ class AIChatWindow:
                 stream=False
             )
             
-            self._update_display(f"AI: {response.choices[0].message.content}\n\n", 'ai')
+            def clear_input():
+                self.message_entry.delete(0, 'end')  # 使用 'end' 而不是 tk.END
+                self.message_entry.configure(placeholder_text="")  # 重置占位符文本
             
+            self._update_display(f"AI: {response.choices[0].message.content}\n\n", 'ai')
+            self.window.after(100, clear_input)  # 增加一个小延迟确保执行
         except Exception as e:
             self._update_display(f"错误: {str(e)}\n", 'error')
         finally:
