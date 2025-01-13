@@ -1547,17 +1547,24 @@ class EmperorApp:
         return popup
     def show_chat_window(self):
         """显示聊天窗口"""
+        # 检查chat_window是否存在且窗口是否仍然有效
         if hasattr(self, 'chat_window') and self.chat_window is not None:
-            self.chat_window.window.lift()  # 如果窗口已存在，将其提升到前面
-            self.chat_window.window.focus_force()
-        else:
-            # 创建新的聊天窗口
             try:
-                # 使用固定的API密钥
-                api_key = 'sk-0937b0ede5ea49ae9ceaa9cecfe8a690'
-                self.chat_window = AIChatWindow(self.root, api_key)
-            except Exception as e:
-                messagebox.showerror("错误", f"无法打开聊天窗口：{str(e)}")
+                # 尝试访问窗口属性来检查窗口是否仍然存在
+                if self.chat_window.window.winfo_exists():
+                    self.chat_window.window.lift()  # 窗口存在，将其提升到前面
+                    self.chat_window.window.focus_force()
+                    return
+            except (AttributeError):
+                # 如果窗口已被销毁，将chat_window设为None
+                self.chat_window = None
+        
+        # 如果没有有效的聊天窗口，创建新窗口
+        try:
+            api_key = 'sk-0937b0ede5ea49ae9ceaa9cecfe8a690'
+            self.chat_window = AIChatWindow(self.root, api_key)
+        except Exception as e:
+            messagebox.showerror("错误", f"无法打开聊天窗口：{str(e)}")
     def get_icon_path(self):
         """获取图标的正确路径"""
         try:
