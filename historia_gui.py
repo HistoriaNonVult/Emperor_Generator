@@ -302,40 +302,56 @@ class AIChatWindow:
         if not message:
             return
             
+        # 防止重复发送
+        if self.send_button.cget('state') == 'disabled':
+            return
+            
         self._set_input_state(tk.DISABLED)
         self.message_entry.delete(0, tk.END)
         self._update_display(f"你: {message}\n", 'user')
-        threading.Thread(
+        
+        # 使用守护线程发送消息
+        send_thread = threading.Thread(
             target=self._get_ai_response,
             args=(message,),
             daemon=True
-        ).start()
+        )
+        send_thread.start()
+        
+        # 添加超时检查
+        self.window.after(30000, self._check_response_timeout, send_thread)
+    
+    def _check_response_timeout(self, thread):
+        """检查响应是否超时"""
+        if thread.is_alive():
+            self._update_display("错误: 响应超时，请重试\n", 'error')
+            self._set_input_state(tk.NORMAL)
     
     def _get_ai_response(self, message):
         """获取AI响应"""
         try:
+            # 设置超时时间
             response = self.client.chat.completions.create(
                 model="deepseek-chat",
                 messages=[
                     {
                         "role": "system",
-                        "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度等问题。请用中文回答。"
+                        "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度等问题。请用中文回答，不要使用markdown格式，只使用普通文本。"
                     },
                     {"role": "user", "content": message}
                 ],
-                stream=False
+                stream=False,
+                timeout=25  # 设置25秒超时
             )
             
-            def clear_input():
-                self.message_entry.delete(0, 'end')  # 使用 'end' 而不是 tk.END
-                self.message_entry.configure(placeholder_text="")  # 重置占位符文本
-            
             self._update_display(f"AI: {response.choices[0].message.content}\n\n", 'ai')
-            self.window.after(100, clear_input)  # 增加一个小延迟确保执行
+            
         except Exception as e:
-            self._update_display(f"错误: {str(e)}\n", 'error')
+            error_msg = f"错误: {str(e)}\n" if str(e) else "发送失败，请重试\n"
+            self._update_display(error_msg, 'error')
         finally:
             self._set_input_state(tk.NORMAL)
+            self.message_entry.focus()  # 重新获取输入焦点
     
     def _update_display(self, text, msg_type='system'):
         """更新聊天显示"""
