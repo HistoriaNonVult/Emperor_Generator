@@ -291,10 +291,44 @@ class AIChatWindow:
         )
         self.send_button.pack(side=tk.RIGHT)
     
+    def _move_window(self, direction):
+        """移动窗口"""
+        print(f"Moving window: {direction}")  # 添加调试输出
+        x = self.window.winfo_x()
+        y = self.window.winfo_y()
+        
+        step = 20  # 每次移动的像素数
+        
+        if direction == 'left':
+            x -= step
+        elif direction == 'right':
+            x += step
+        elif direction == 'up':
+            y -= step
+        elif direction == 'down':
+            y += step
+        
+        # 确保窗口不会移出屏幕
+        screen_width = self.window.winfo_screenwidth()
+        screen_height = self.window.winfo_screenheight()
+        window_width = self.window.winfo_width()
+        window_height = self.window.winfo_height()
+        
+        # 限制x坐标范围
+        x = max(0, min(x, screen_width - window_width))
+        # 限制y坐标范围
+        y = max(0, min(y, screen_height - window_height))
+        
+        print(f"New position: x={x}, y={y}")  # 添加调试输出
+        self.window.geometry(f"+{x}+{y}")
     def _bind_events(self):
         """绑定事件"""
         self.message_entry.bind('<Return>', lambda e: self._send_message())
         self.window.protocol("WM_DELETE_WINDOW", self._on_closing)
+        self.window.bind('<Left>', lambda e: self._move_window('left'))
+        self.window.bind('<Right>', lambda e: self._move_window('right'))
+        self.window.bind('<Up>', lambda e: self._move_window('up'))
+        self.window.bind('<Down>', lambda e: self._move_window('down'))
     
     def _send_message(self):
         """发送消息"""
@@ -341,7 +375,7 @@ class AIChatWindow:
                     {"role": "user", "content": message}
                 ],
                 stream=False,
-                timeout=25  # 设置25秒超时
+                timeout=15  # 设置15秒超时
             )
             
             self._update_display(f"AI: {response.choices[0].message.content}\n\n", 'ai')
