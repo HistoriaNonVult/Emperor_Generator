@@ -423,6 +423,36 @@ class AIChatWindow:
         self.window.destroy()
         
 class EmperorApp:
+    def _move_window(self, direction):
+        """移动窗口"""
+        print(f"Moving window: {direction}")  # 添加调试输出
+        x = self.root.winfo_x()
+        y = self.root.winfo_y()
+        
+        step = 20  # 每次移动的像素数
+        
+        if direction == 'left':
+            x -= step
+        elif direction == 'right':
+            x += step
+        elif direction == 'up':
+            y -= step
+        elif direction == 'down':
+            y += step
+        
+        # 确保窗口不会移出屏幕
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        window_width = self.root.winfo_width()
+        window_height = self.root.winfo_height()
+        
+        # 限制x坐标范围
+        x = max(0, min(x, screen_width - window_width))
+        # 限制y坐标范围
+        y = max(0, min(y, screen_height - window_height))
+        
+        print(f"New position: x={x}, y={y}")  # 添加调试输出
+        self.root.geometry(f"+{x}+{y}")
     def __init__(self, root):
         self.root = root
         self.root.title("受命於天，既壽永昌")
@@ -464,6 +494,12 @@ class EmperorApp:
         # 开始淡入效果
         self.fade_in()
         self.check_vpn_status()
+        
+        self.root.bind('<Left>', lambda e: self._move_window('left'))
+        self.root.bind('<Right>', lambda e: self._move_window('right'))
+        self.root.bind('<Up>', lambda e: self._move_window('up'))
+        self.root.bind('<Down>', lambda e: self._move_window('down'))
+        
     def check_vpn_status(self):
         """检测Windows代理状态"""
         global can_access_google  # global 声明需要在最前面
