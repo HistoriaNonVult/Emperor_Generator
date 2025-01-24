@@ -361,47 +361,82 @@ class AIChatWindow:
             self._update_display("错误: 响应超时，请重试\n", 'error')
             self._set_input_state(tk.NORMAL)
     
+        # 修改后的 _get_ai_response 函数
     def _get_ai_response(self, message):
-        """获取AI响应"""
+        """获取AI响应（流式版本）"""
         try:
-            # 设置超时时间
-            response = self.client.chat.completions.create(
+            # 初始化流式消息标记
+            self._update_display("AI: ", 'ai_stream')
+            
+            # 发起流式请求
+            response_stream = self.client.chat.completions.create(
                 model="deepseek-chat",
                 messages=[
                     {
                         "role": "system",
-                        "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度等问题。请用中文回答，不要使用markdown格式，只使用普通文本。"
+                        "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度、历史评价等问题。请用中文回答，不要使用markdown格式，只使用普通文本。"
                     },
                     {"role": "user", "content": message}
                 ],
-                stream=False,
-                timeout=15  # 设置15秒超时
+                stream=True,  # 启用流式传输
+                timeout=15
             )
-            
-            self._update_display(f"AI: {response.choices[0].message.content}\n\n", 'ai')
-            
+
+            full_response = ""
+            # 处理流式响应
+            for chunk in response_stream:
+                chunk_content = chunk.choices[0].delta.content
+                if chunk_content:
+                    full_response += chunk_content
+                    # 实时更新显示（追加模式）
+                    self._update_display(chunk_content, 'ai_stream', append=True)
+
+            # 最终处理
+            self._update_display("\n\n", 'ai_stream', append=True)
+            return full_response
+
         except Exception as e:
             error_msg = f"错误: {str(e)}\n" if str(e) else "发送失败，请重试\n"
             self._update_display(error_msg, 'error')
         finally:
             self._set_input_state(tk.NORMAL)
-            self.message_entry.focus()  # 重新获取输入焦点
-    
-    def _update_display(self, text, msg_type='system'):
-        """更新聊天显示"""
+
+    # 改进后的 _update_display 函数
+    def _update_display(self, text, msg_type='system', append=False):
+        """更新聊天显示（支持流式模式）"""
         def _update():
             self.chat_display.config(state=tk.NORMAL)
             
-            # 暖色调的消息样式
-            tag = f'msg_{msg_type}'
-            self.chat_display.tag_config('user', foreground='#8B4513')  # 深棕色
-            self.chat_display.tag_config('ai', foreground='#5C4033')    # 中棕色
-            self.chat_display.tag_config('error', foreground='#CD5C5C') # 暖红色
+            # 颜色配置（新增ai_stream类型）
+            color_palette = {
+                'user': '#8B4513',    # 深棕色
+                'ai': '#5C4033',      # 中棕色
+                'error': '#CD5C5C',   # 暖红色
+                'ai_stream': '#5C4033' 
+            }
             
-            self.chat_display.insert(tk.END, text, tag)
+            # 自动创建标签样式
+            tag_name = f'msg_{msg_type}'
+            if tag_name not in self.chat_display.tag_names():
+                self.chat_display.tag_config(
+                    tag_name, 
+                    foreground=color_palette.get(msg_type, '#000000')
+                )
+
+            # 流式内容处理逻辑
+            if append:
+                # 直接追加内容
+                self.chat_display.insert(tk.END, text, tag_name)
+            else:
+                # 非流式内容添加换行分隔
+                if self.chat_display.index(tk.END) != "1.0":
+                    self.chat_display.insert(tk.END, "\n")
+                self.chat_display.insert(tk.END, text, tag_name)
+
             self.chat_display.config(state=tk.DISABLED)
             self.chat_display.see(tk.END)
-        
+
+        # 线程安全处理
         if threading.current_thread() is threading.main_thread():
             _update()
         else:
