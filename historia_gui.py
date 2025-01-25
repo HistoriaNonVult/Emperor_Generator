@@ -203,6 +203,8 @@ class AIChatWindow:
             api_key=api_key,
             base_url="https://api.deepseek.com"
         )
+        # 添加对话历史列表
+        self.conversation_history = []
         
         # 创建窗口
         self.window = tk.Toplevel(parent)
@@ -361,24 +363,31 @@ class AIChatWindow:
             self._update_display("错误: 响应超时，请重试\n", 'error')
             self._set_input_state(tk.NORMAL)
     
-        # 修改后的 _get_ai_response 函数
     def _get_ai_response(self, message):
         """获取AI响应（流式版本）"""
         try:
             # 初始化流式消息标记
             self._update_display("AI: ", 'ai_stream')
             
+            # 构建消息历史
+            messages = [
+                {
+                    "role": "system",
+                    "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度、历史评价、同时期中西方对比等问题。请用中文回答，不要使用markdown格式，只使用普通文本。"
+                }
+            ]
+            
+            # 添加历史对话，但限制数量以避免超出上下文长度
+            messages.extend(self.conversation_history[-4:])  # 保留最近4轮对话
+            
+            # 添加当前用户消息
+            messages.append({"role": "user", "content": message})
+            
             # 发起流式请求
             response_stream = self.client.chat.completions.create(
                 model="deepseek-chat",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度、历史评价、同时期中西方对比等问题。请用中文回答，不要使用markdown格式，只使用普通文本。"
-                    },
-                    {"role": "user", "content": message}
-                ],
-                stream=True,  # 启用流式传输
+                messages=messages,
+                stream=True,
                 timeout=15
             )
 
@@ -388,9 +397,12 @@ class AIChatWindow:
                 chunk_content = chunk.choices[0].delta.content
                 if chunk_content:
                     full_response += chunk_content
-                    # 实时更新显示（追加模式）
                     self._update_display(chunk_content, 'ai_stream', append=True)
 
+            # 保存对话历史
+            self.conversation_history.append({"role": "user", "content": message})
+            self.conversation_history.append({"role": "assistant", "content": full_response})
+            
             # 最终处理
             self._update_display("\n\n", 'ai_stream', append=True)
             return full_response
@@ -401,7 +413,6 @@ class AIChatWindow:
         finally:
             self._set_input_state(tk.NORMAL)
 
-    # 改进后的 _update_display 函数
     def _update_display(self, text, msg_type='system', append=False):
         """更新聊天显示（支持流式模式）"""
         def _update():
