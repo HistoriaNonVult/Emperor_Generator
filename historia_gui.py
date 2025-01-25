@@ -374,7 +374,7 @@ class AIChatWindow:
                 messages=[
                     {
                         "role": "system",
-                        "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度、历史评价等问题。请用中文回答，不要使用markdown格式，只使用普通文本。"
+                        "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度、历史评价、同时期中西方对比等问题。请用中文回答，不要使用markdown格式，只使用普通文本。"
                     },
                     {"role": "user", "content": message}
                 ],
