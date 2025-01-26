@@ -355,7 +355,7 @@ class AIChatWindow:
         send_thread.start()
         
         # 添加超时检查
-        self.window.after(30000, self._check_response_timeout, send_thread)
+        self.window.after(40000, self._check_response_timeout, send_thread)
     
     def _check_response_timeout(self, thread):
         """检查响应是否超时"""
