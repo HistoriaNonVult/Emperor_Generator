@@ -373,11 +373,10 @@ class AIChatWindow:
             messages = [
                 {
                     "role": "system",
-                    "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度、历史评价、同时期中西方对比等问题。请用中文回答，不要使用markdown格式，只使用普通文本。"
+                    "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度、历史评价、同时期中西方对比等问题。要求客观、理性，请用中文回答，不要使用markdown格式，只使用普通文本。"
                 }
             ]
-            
-            # 添加历史对话，但限制数量以避免超出上下文长度
+            temperature = 0.9
             messages.extend(self.conversation_history[-4:])  # 保留最近4轮对话
             
             # 添加当前用户消息
