@@ -284,14 +284,18 @@ class AIChatWindow:
             input_frame,
             text="发送",
             command=self._send_message,
-            font=('微软雅黑', 11),
+            font=('微软雅黑', 11, 'bold'),
             height=40,
-            width=50,
-            fg_color='#B38B6D',  # 暖棕色
-            hover_color='#8B4513',  # 深棕色
-            corner_radius=4
+            width=60,
+            fg_color='#A0522D',  # 深棕色
+            hover_color='#CD853F',  # 浅棕色
+            text_color='#FFF8DC',  # 米色文字
+            corner_radius=8,
+            border_width=2,
+            border_color='#8B4513',  # 深棕色边框
+            cursor='hand2'  # 鼠标悬停时显示手型光标
         )
-        self.send_button.pack(side=tk.RIGHT)
+        self.send_button.pack(side=tk.RIGHT, padx=(5, 0))
     
     def _move_window(self, direction):
         """移动窗口"""
