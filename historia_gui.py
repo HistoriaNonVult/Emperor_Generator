@@ -17,7 +17,12 @@ from openai import OpenAI
 from ai_chat_window import AIChatWindow
 from emperor_generator import EmperorGenerator
 from data import emperor_text
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 can_access_google = None
+import matplotlib
+
+matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 使用黑体
 
 class EmperorApp:
     def _move_window(self, direction):
@@ -1854,7 +1859,16 @@ class EmperorApp:
             if self.is_traditional:
                 line = self.convert_text(line, True)
             self.display_text.insert(tk.END, line)
-        
+        # dynasties = list(stats['dynasty_stats'].keys())
+        # emperor_counts = [data['count'] for data in stats['dynasty_stats'].values()]
+        # plt.figure(figsize=(12, 6))  # 设置图表大小
+        # plt.bar(dynasties, emperor_counts)
+        # plt.xlabel("朝代")
+        # plt.ylabel("皇帝数量")
+        # plt.title("各朝代皇帝数量")
+        # plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        # plt.tight_layout()  # 调整布局，避免标签遮挡
+        # plt.show()
         # 3. 名字用字统计
         name_title = "\n名讳常用字TOP50：\n"
         if self.is_traditional:
@@ -1870,6 +1884,25 @@ class EmperorApp:
             if self.is_traditional:
                 line = self.convert_text(line, True)
             self.display_text.insert(tk.END, line)
+        
+        # # 获取名字用字统计的前50名
+        # top_50_chars = sorted(
+        #     stats['name_stats'].items(), 
+        #     key=lambda x: x[1], 
+        #     reverse=True
+        # )[:50]
+        
+        # # 创建图表
+        # plt.figure(figsize=(12, 6))  # 设置图表大小
+        # chars = [char for char, _ in top_50_chars]
+        # counts = [count for _, count in top_50_chars]
+        # plt.bar(chars, counts)
+        # plt.xlabel("字")
+        # plt.ylabel("出现次数")
+        # plt.title("名字用字统计TOP50")
+        # plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        # plt.tight_layout()  # 调整布局，避免标签遮挡
+        # plt.show()
         
         # 4. 年号用字统计
         era_title = "\n年号常用字TOP50：\n"
@@ -1887,6 +1920,25 @@ class EmperorApp:
                 line = self.convert_text(line, True)
             self.display_text.insert(tk.END, line)
         
+        # # 获取年号用字统计的前50名
+        # top_50_era_chars = sorted(
+        #     stats['era_name_stats'].items(), 
+        #     key=lambda x: x[1], 
+        #     reverse=True
+        # )[:50]
+        
+        # # 创建图表
+        # plt.figure(figsize=(12, 6))  # 设置图表大小
+        # era_chars = [char for char, _ in top_50_era_chars]
+        # era_counts = [count for _, count in top_50_era_chars]
+        # plt.bar(era_chars, era_counts)
+        # plt.xlabel("字")
+        # plt.ylabel("出现次数")
+        # plt.title("年号用字统计TOP50")
+        # plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        # plt.tight_layout()  # 调整布局，避免标签遮挡
+        # plt.show()
+        
         # 5. 庙号用字统计           # 新增部分
         temple_title = "\n庙号常用字TOP50：\n"
         if self.is_traditional:
@@ -1902,6 +1954,25 @@ class EmperorApp:
             if self.is_traditional:
                 line = self.convert_text(line, True)
             self.display_text.insert(tk.END, line)
+            
+        #  # 获取庙号用字统计的前50名
+        # top_50_temple_chars = sorted(
+        #     stats['temple_name_stats'].items(), 
+        #     key=lambda x: x[1], 
+        #     reverse=True
+        # )[:50]
+        
+        # # 创建图表
+        # plt.figure(figsize=(12, 6))  # 设置图表大小
+        # temple_chars = [char for char, _ in top_50_temple_chars]
+        # temple_counts = [count for _, count in top_50_temple_chars]
+        # plt.bar(temple_chars, temple_counts)
+        # plt.xlabel("字")
+        # plt.ylabel("出现次数")
+        # plt.title("庙号用字统计TOP50")
+        # plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        # plt.tight_layout()  # 调整布局，避免标签遮挡
+        # plt.show()
         
         # 6. 谥号用字统计           # 新增部分
         posthumous_title = "\n谥号常用字TOP50：\n"
@@ -1918,7 +1989,116 @@ class EmperorApp:
             if self.is_traditional:
                 line = self.convert_text(line, True)
             self.display_text.insert(tk.END, line)
-
+            
+        # 获取谥号用字统计的前50名
+        top_50_posthumous_chars = sorted(
+            stats['posthumous_name_stats'].items(), 
+            key=lambda x: x[1], 
+            reverse=True
+        )[:50]
+        
+        # # 创建图表
+        # plt.figure(figsize=(12, 6))  # 设置图表大小
+        # posthumous_chars = [char for char, _ in top_50_posthumous_chars]
+        # posthumous_counts = [count for _, count in top_50_posthumous_chars]
+        # plt.bar(posthumous_chars, posthumous_counts)
+        # plt.xlabel("字")
+        # plt.ylabel("出现次数")
+        # plt.title("谥号用字统计TOP50")
+        # plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        # plt.tight_layout()  # 调整布局，避免标签遮挡
+        # plt.show()
+        # 获取朝代和皇帝数量数据
+       
+        dynasties = list(stats['dynasty_stats'].keys())
+        emperor_counts = [data['count'] for data in stats['dynasty_stats'].values()]
+        plt.figure(figsize=(12, 6))  # 设置图表大小
+        plt.bar(dynasties, emperor_counts)
+        plt.xlabel("朝代")
+        plt.ylabel("皇帝数量")
+        plt.title("各朝代皇帝数量")
+        plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        plt.tight_layout()  # 调整布局，避免标签遮挡
+        plt.show()
+        
+        # 获取名字用字统计的前50名
+        top_50_chars = sorted(
+            stats['name_stats'].items(), 
+            key=lambda x: x[1], 
+            reverse=True
+        )[:50]
+        
+        # 创建图表
+        plt.figure(figsize=(12, 6))  # 设置图表大小
+        chars = [char for char, _ in top_50_chars]
+        counts = [count for _, count in top_50_chars]
+        plt.bar(chars, counts)
+        plt.xlabel("字")
+        plt.ylabel("出现次数")
+        plt.title("名字用字统计TOP50")
+        plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        plt.tight_layout()  # 调整布局，避免标签遮挡
+        plt.show()
+        
+        # 获取名字用字统计的前50名
+        top_50_chars = sorted(
+            stats['name_stats'].items(), 
+            key=lambda x: x[1], 
+            reverse=True
+        )[:50]
+        
+        # 创建图表
+        plt.figure(figsize=(12, 6))  # 设置图表大小
+        chars = [char for char, _ in top_50_chars]
+        counts = [count for _, count in top_50_chars]
+        plt.bar(chars, counts)
+        plt.xlabel("字")
+        plt.ylabel("出现次数")
+        plt.title("名字用字统计TOP50")
+        plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        plt.tight_layout()  # 调整布局，避免标签遮挡
+        plt.show()
+        
+            
+         # 获取庙号用字统计的前50名
+        top_50_temple_chars = sorted(
+            stats['temple_name_stats'].items(), 
+            key=lambda x: x[1], 
+            reverse=True
+        )[:50]
+        
+        # 创建图表
+        plt.figure(figsize=(12, 6))  # 设置图表大小
+        temple_chars = [char for char, _ in top_50_temple_chars]
+        temple_counts = [count for _, count in top_50_temple_chars]
+        plt.bar(temple_chars, temple_counts)
+        plt.xlabel("字")
+        plt.ylabel("出现次数")
+        plt.title("庙号用字统计TOP50")
+        plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        plt.tight_layout()  # 调整布局，避免标签遮挡
+        plt.show()
+        
+            
+        # 获取谥号用字统计的前50名
+        top_50_posthumous_chars = sorted(
+            stats['posthumous_name_stats'].items(), 
+            key=lambda x: x[1], 
+            reverse=True
+        )[:50]
+        
+        # 创建图表
+        plt.figure(figsize=(12, 6))  # 设置图表大小
+        posthumous_chars = [char for char, _ in top_50_posthumous_chars]
+        posthumous_counts = [count for _, count in top_50_posthumous_chars]
+        plt.bar(posthumous_chars, posthumous_counts)
+        plt.xlabel("字")
+        plt.ylabel("出现次数")
+        plt.title("谥号用字统计TOP50")
+        plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        plt.tight_layout()  # 调整布局，避免标签遮挡
+        plt.show()
+        
     def _calculate_reign_length(self, reign_period):
         """计算在位时长"""
         try:

@@ -8,3 +8,4 @@ webbrowser
 fnmatch
 customtkinter
 openai
+matplotlib
