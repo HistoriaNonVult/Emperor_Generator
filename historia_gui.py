@@ -2040,21 +2040,20 @@ class EmperorApp:
         plt.tight_layout()  # 调整布局，避免标签遮挡
         plt.show()
         
-        # 获取名字用字统计的前50名
-        top_50_chars = sorted(
-            stats['name_stats'].items(), 
+        top_50_era_chars = sorted(
+            stats['era_name_stats'].items(), 
             key=lambda x: x[1], 
             reverse=True
         )[:50]
         
         # 创建图表
         plt.figure(figsize=(12, 6))  # 设置图表大小
-        chars = [char for char, _ in top_50_chars]
-        counts = [count for _, count in top_50_chars]
-        plt.bar(chars, counts)
+        era_chars = [char for char, _ in top_50_era_chars]
+        era_counts = [count for _, count in top_50_era_chars]
+        plt.bar(era_chars, era_counts)
         plt.xlabel("字")
         plt.ylabel("出现次数")
-        plt.title("名字用字统计TOP50")
+        plt.title("年号用字统计TOP50")
         plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
         plt.tight_layout()  # 调整布局，避免标签遮挡
         plt.show()
