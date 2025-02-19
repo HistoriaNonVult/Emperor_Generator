@@ -1821,7 +1821,7 @@ class EmperorApp:
         
         # 标题
         title = "皇帝数据统计分析\n"
-        title += "=" * 30 + "\n\n"
+        title += "_" * 32 + "\n\n"
         if self.is_traditional:
             title = self.convert_text(title, True)
         self.display_text.insert(tk.END, title)
