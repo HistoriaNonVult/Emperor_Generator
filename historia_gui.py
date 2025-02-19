@@ -1085,6 +1085,18 @@ class EmperorApp:
         if self.is_traditional:
             note = self.convert_text(note, True)
         self.display_text.insert(tk.END, note, "note")
+        # 进行数据可视化
+        # 创建图表
+        plt.figure(figsize=(12, 6))  # 设置图表大小
+        dynasties = ["秦朝", "西汉", "新朝", "东汉", "曹魏", "蜀汉", "东吴", "西晋", "东晋", "刘宋", "南齐", "南梁", "陈", "北魏", "东魏", "西魏", "北齐", "北周", "隋朝", "唐朝", "后梁", "后唐", "后晋", "后汉", "后周", "北宋", "辽", "金", "南宋", "元朝", "明朝", "大顺", "南明", "清朝"]
+        years = [15, 210, 14, 195, 45, 42, 58, 51, 103, 59, 23, 55, 32, 148, 16, 22, 27, 24, 38, 289, 16, 13, 11, 4, 9, 167, 209, 119, 152, 97, 276, 1, 18, 268]
+        plt.bar(dynasties, years)  # 根据朝代长度设置柱状图高度
+        plt.xlabel("朝代")
+        plt.ylabel("国祚")
+        plt.title("国祚图")
+        plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        plt.tight_layout()  # 调整布局，避免标签遮挡
+        plt.show()
 
     def create_advanced_search_dialog(self):
         """创建高级搜索对话框"""
@@ -1851,6 +1863,17 @@ class EmperorApp:
             reverse=True
         )
         
+        # dynasties = [dynasty for dynasty, _ in sorted_dynasties]
+        # avg_reigns = [data['avg_reign'] for _, data in sorted_dynasties]
+        # plt.figure(figsize=(12, 6))  # 设置图表大小
+        # plt.bar(dynasties, avg_reigns)
+        # plt.xlabel("朝代")
+        # plt.ylabel("平均在位时间（年）")
+        # plt.title("各朝代平均在位时间")
+        # plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        # plt.tight_layout()  # 调整布局，避免标签遮挡
+        # plt.show()
+        
         for dynasty, data in sorted_dynasties:
             line = f"▪ {dynasty}: {data['count']}位皇帝"
             if data['avg_reign'] > 0:
@@ -2021,6 +2044,17 @@ class EmperorApp:
         plt.tight_layout()  # 调整布局，避免标签遮挡
         plt.show()
         
+        #平均在位时间
+        dynasties = list(stats['dynasty_stats'].keys())
+        avg_reigns = [data['avg_reign'] for _, data in stats['dynasty_stats'].items()]
+        plt.figure(figsize=(12, 6))  # 设置图表大小
+        plt.bar(dynasties, avg_reigns)
+        plt.xlabel("朝代")
+        plt.ylabel("平均在位时间（年）")
+        plt.title("各朝代平均在位时间")
+        plt.xticks(rotation=45, ha='right')  # 倾斜x轴标签，避免重叠
+        plt.tight_layout()  # 调整布局，避免标签遮挡
+        plt.show()
         # 获取名字用字统计的前50名
         top_50_chars = sorted(
             stats['name_stats'].items(), 
