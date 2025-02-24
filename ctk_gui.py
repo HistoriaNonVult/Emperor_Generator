@@ -28,11 +28,8 @@ matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 使用黑体
 class EmperorApp:
     def _move_window(self, direction):
         """移动窗口"""
-        print(f"Moving window: {direction}")
-        x = self.root.winfo_x()
-        y = self.root.winfo_y()
-        
         step = 20
+        x, y = self.root.winfo_x(), self.root.winfo_y()
         
         if direction == 'left':
             x -= step
@@ -48,11 +45,11 @@ class EmperorApp:
         window_width = self.root.winfo_width()
         window_height = self.root.winfo_height()
         
-        x = max(0, min(x, screen_width - window_width))
-        y = max(0, min(y, screen_height - window_height))
-        
-        print(f"New position: x={x}, y={y}")
         self.root.geometry(f"+{x}+{y}")
+
+    def _bind_arrow_keys(self):
+        for direction, key in [('left', '<Left>'), ('right', '<Right>'), ('up', '<Up>'), ('down', '<Down>')]:
+            self.root.bind(key, lambda e, d=direction: self._move_window(d))
 
     def __init__(self, root):
         self.root = root
@@ -74,8 +71,8 @@ class EmperorApp:
         except Exception as e:
             print(f"无法加载图标: {e}")
         
-        window_width = 800
-        window_height = 800
+        window_width = 900  # 稍微增加窗口宽度以适应更大的字体
+        window_height = 900  # 稍微增加窗口高度
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
         x = (screen_width - window_width) // 2
@@ -122,9 +119,10 @@ class EmperorApp:
 
     def setup_fonts(self):
         self.is_traditional = False
-        self.title_font = ('华文行楷', 16)
-        self.button_font = ('华文行楷', 12)
-        self.text_font = ('华文行楷', 12)
+        # 字体放大到约30%-40%
+        self.title_font = ('华文行楷', 22)  # 原16，放大到22
+        self.button_font = ('华文行楷', 16)  # 原12，放大到16
+        self.text_font = ('华文行楷', 16)    # 原12，放大到16
 
     def create_widgets(self):
         THEME_COLORS = {
@@ -132,28 +130,28 @@ class EmperorApp:
             'secondary': '#704214',   # 深褐色：象征历史的沉淀
             'accent': '#DAA520',      # 古铜金：象征皇家气派
             'text': '#2B1B17',        # 墨黑色：典籍颜色
-            'bg': '#EBEBEB'           # 白色背景，替换黑色
+            'bg': '#EBEBEB'           # customtkinter light模式的默认背景色
         }
 
         # 主窗口使用 CTkFrame 保持 customtkinter 风格
         title_frame = ctk.CTkFrame(self.root, fg_color=THEME_COLORS['bg'])
-        title_frame.pack(fill='x', pady=(20, 0))
+        title_frame.pack(fill='x', pady=(25, 0))  # 增加pady以适应更大字体
         
         title_label = ctk.CTkLabel(
             title_frame,
             text="皇帝生成器",
-            font=('华文行楷', 36, 'bold'),
-            text_color='#8B0000'  # 红色标题，确保与白色背景对比
+            font=('华文行楷', 50, 'bold'),  # 原36，放大到50
+            text_color='#8B0000'
         )
-        title_label.pack(pady=(10, 5))
+        title_label.pack(pady=(12, 6))
 
         # 分隔线使用 CTkFrame 模拟
         separator_frame = ctk.CTkFrame(self.root, height=2, fg_color='#704214')
-        separator_frame.pack(fill='x', padx=150, pady=(0, 20))
+        separator_frame.pack(fill='x', padx=150, pady=(0, 25))
 
         # 控制框架
         control_frame = ctk.CTkFrame(self.root, fg_color=THEME_COLORS['bg'])
-        control_frame.pack(fill='x', padx=20, pady=(0, 10))
+        control_frame.pack(fill='x', padx=25, pady=(0, 12))
         
         search_frame = ctk.CTkFrame(control_frame, fg_color=THEME_COLORS['bg'])
         search_frame.pack(side='left')
@@ -161,53 +159,53 @@ class EmperorApp:
         self.search_label = ctk.CTkLabel(
             search_frame,
             text="搜索皇帝：",
-            font=self.button_font,
-            text_color=THEME_COLORS['text']  # 黑色文字，确保与白色背景对比
+            font=self.button_font,  # 使用放大的button_font (16)
+            text_color=THEME_COLORS['text']
         )
-        self.search_label.pack(side='left', padx=(0, 10))
+        self.search_label.pack(side='left', padx=(0, 12))
         
         self.search_entry = ctk.CTkEntry(
             search_frame,
-            font=self.text_font,
-            width=200,
-            fg_color='#FFF8DC',  # 浅黄色输入框背景，保持一致
-            text_color=THEME_COLORS['text']  # 黑色文字，确保可见
+            font=self.text_font,  # 使用放大的text_font (16)
+            width=240,  # 增加宽度以适应更大字体
+            fg_color='#FFF8DC',
+            text_color=THEME_COLORS['text']
         )
         self.search_entry.pack(side='left')
         
         buttons_frame = ctk.CTkFrame(search_frame, fg_color=THEME_COLORS['bg'])
-        buttons_frame.pack(side='left', padx=5)
+        buttons_frame.pack(side='left', padx=6)
         
         self.search_button = ctk.CTkButton(
             buttons_frame,
             text="搜索",
             command=self.search_emperor,
-            font=('微软雅黑', 10),
-            width=60,
-            fg_color='#F5E6CB',  # 浅棕色背景，确保可见
-            text_color='#8B2323',  # 深红文字，与背景对比
-            hover_color='#DAA520'  # 悬停时金色
+            font=('微软雅黑', 14),  # 原10，放大到14
+            width=72,  # 增加宽度
+            fg_color='#F5E6CB',
+            text_color='#8B2323',
+            hover_color='#DAA520'
         )
-        self.search_button.pack(side='left', padx=5)
+        self.search_button.pack(side='left', padx=6)
         
         self.advanced_search_button = ctk.CTkButton(
             buttons_frame,
             text="高级搜索",
             command=self.create_advanced_search_dialog,
-            font=('微软雅黑', 10),
-            width=80,
+            font=('微软雅黑', 14),  # 原10，放大到14
+            width=96,  # 增加宽度
             fg_color='#F5E6CB',
             text_color='#8B2323',
             hover_color='#DAA520'
         )
-        self.advanced_search_button.pack(side='left', padx=5)
+        self.advanced_search_button.pack(side='left', padx=6)
         
         self.switch_button = ctk.CTkButton(
             control_frame,
             text="繁體",
             command=self.toggle_traditional,
-            font=('微软雅黑', 10),
-            width=60,
+            font=('微软雅黑', 14),  # 原10，放大到14
+            width=72,  # 增加宽度
             fg_color='#F5E6CB',
             text_color='#8B2323',
             hover_color='#DAA520'
@@ -241,33 +239,33 @@ class EmperorApp:
         ]
         
         button_frame = ctk.CTkFrame(self.root, fg_color=THEME_COLORS['bg'])
-        button_frame.pack(pady=20)
+        button_frame.pack(pady=25)
         
         for i, btn_style in enumerate(button_styles):
             btn = ctk.CTkButton(
                 button_frame,
                 text=f"{btn_style['icon']} {btn_style['text']}",
                 command=btn_style["command"],
-                font=('LiSu', 16),
-                width=200,
-                height=40,
+                font=('LiSu', 22),  # 原16，放大到22
+                width=240,  # 增加宽度
+                height=48,  # 增加高度
                 fg_color=btn_style["bg"],
                 text_color="white",
                 hover_color=btn_style["hover_bg"]
             )
-            btn.grid(row=0, column=i, padx=15, pady=5)
+            btn.grid(row=0, column=i, padx=18, pady=6)
 
         # 排序和按钮区域
         sort_frame = ctk.CTkFrame(self.root, fg_color=THEME_COLORS['bg'])
-        sort_frame.pack(fill="x", padx=10, pady=(5, 0))
+        sort_frame.pack(fill="x", padx=12, pady=(6, 0))
         
         self.sort_label = ctk.CTkLabel(
             sort_frame,
             text="排序方式：",
-            font=('微雅黑', 9),
+            font=('微软雅黑', 15),  # 原9，放大到12
             text_color=THEME_COLORS['text']
         )
-        self.sort_label.pack(side="left", padx=(0, 5))
+        self.sort_label.pack(side="left", padx=(0, 6))
         
         self.sort_var = ctk.StringVar(value='dynasty')
         sort_options = [
@@ -284,47 +282,47 @@ class EmperorApp:
                 variable=self.sort_var,
                 value=value,
                 command=self.resort_results,
-                font=('微雅黑', 9),
+                font=('微软雅黑', 15),  # 原9，放大到12
                 text_color=THEME_COLORS['text'],
                 fg_color=THEME_COLORS['bg']
             )
-            rb.pack(side="left", padx=5)
+            rb.pack(side="left", padx=6)
             self.sort_buttons.append(rb)
         
         self.analyze_button = ctk.CTkButton(
             sort_frame,
-            text="统计分析",
+            text="统计分析",  # 固定文本
             command=self.analyze_emperors,
-            font=('华文行楷', 16),
+            font=('华文行楷', 22),  # 原16，放大到22
             fg_color='#E6D5AC',
             hover_color='#D4C391',
             text_color='#4A4A4A',
             corner_radius=6,
             border_width=1,
             border_color='#8B4513',
-            width=100,
-            height=32
+            width=120,  # 增加宽度
+            height=38   # 增加高度
         )
-        self.analyze_button.pack(side="right", padx=20)
+        self.analyze_button.pack(side="right", padx=25)
 
         self.chat_button = ctk.CTkButton(
             sort_frame,
             text="AI助手",
             command=self.show_chat_window,
-            font=('华文行楷', 16),
+            font=('华文行楷', 22),  # 原16，放大到22
             fg_color='#2C3E50',
             hover_color='#34495E',
             text_color='#7DF9FF',
             corner_radius=8,
             border_width=2,
             border_color='#00CED1',
-            width=100,
-            height=32
+            width=120,  # 增加宽度
+            height=38   # 增加高度
         )
-        self.chat_button.pack(side="right", padx=5)
+        self.chat_button.pack(side="right", padx=6)
         
         text_frame = ctk.CTkFrame(self.root, fg_color=THEME_COLORS['bg'])
-        text_frame.pack(padx=30, pady=20, fill="both", expand=True)
+        text_frame.pack(padx=35, pady=25, fill="both", expand=True)
         
         # 使用 tk.Text 保持标签功能，并添加 customtkinter 滚动条
         self.display_text = tk.Text(
@@ -332,9 +330,9 @@ class EmperorApp:
             wrap=tk.WORD,
             width=65,
             height=22,
-            font=('KaiTi', 16),
-            bg='#FFF8DC',  # 浅黄色背景，确保文本可见
-            fg=THEME_COLORS['text'],  # 黑色文字
+            font=('KaiTi', 26),  # 原16，放大到25
+            bg='#FFF8DC',
+            fg=THEME_COLORS['text'],
             relief="solid",
             borderwidth=1
         )
@@ -352,21 +350,21 @@ class EmperorApp:
         
         self.TEXT_TAGS = {
             'hyperlink': {
-                'font': ('KaiTi', 12),
+                'font': ('KaiTi', 16),  # 原12，放大到16
                 'foreground': "#8B2323",
                 'underline': 1
             },
             'section_title': {
-                'font': ('Microsoft YaHei', 16, 'bold'),
+                'font': ('Microsoft YaHei', 22, 'bold'),  # 原16，放大到22
                 'foreground': '#8B0000',
-                'spacing1': 10,
-                'spacing3': 10
+                'spacing1': 12,  # 稍微增加间距
+                'spacing3': 12
             },
             'dynasty_title': {
-                'font': ('Microsoft YaHei', 14, 'bold'),
+                'font': ('Microsoft YaHei', 19, 'bold'),  # 原14，放大到19
                 'foreground': '#704214',
-                'spacing1': 5,
-                'spacing3': 5
+                'spacing1': 6,
+                'spacing3': 6
             }
         }
         
@@ -392,7 +390,7 @@ class EmperorApp:
         
         def convert_widget_text(widget):
             if isinstance(widget, (ctk.CTkButton, ctk.CTkLabel, ctk.CTkRadioButton)):
-                if widget != self.switch_button:
+                if widget != self.switch_button and widget != self.analyze_button:
                     current_text = widget.cget('text')
                     new_text = self.convert_text(current_text, self.is_traditional)
                     widget.configure(text=new_text)
@@ -503,7 +501,7 @@ class EmperorApp:
                 if count <= 0:
                     raise ValueError
                 if count > len(self.generator.all_emperors):
-                    messagebox.showwarning("警告", f"最多只能生成{len(self.generator.all_emperors)}位帝。")
+                    messagebox.showwarning("警告", f"最多只能生成{len(self.generator.all_emperors)}位皇帝。")
                     count = len(self.generator.all_emperors)
                 emperors = self.generator.generate_multiple_emperors(count)
                 self.display_text.delete("1.0", "end")
@@ -516,11 +514,11 @@ class EmperorApp:
                 messagebox.showerror("输入错误", "请输入一个有效的正整数")
 
         popup = self.create_popup("生成多位皇帝")
-        ctk.CTkLabel(popup, text="请输入想生成的皇帝数量：", font=self.button_font).pack(pady=20)
-        entry = ctk.CTkEntry(popup, font=self.text_font, width=200, fg_color='#FFF8DC', text_color='#2B1B17')
-        entry.pack(pady=15)
-        submit_button = ctk.CTkButton(popup, text="生成", command=submit, width=150, fg_color='#F5E6CB', text_color='#8B2323', hover_color='#DAA520')
-        submit_button.pack(pady=15)
+        ctk.CTkLabel(popup, text="请输入想生成的皇帝数量：", font=self.button_font).pack(pady=25)
+        entry = ctk.CTkEntry(popup, font=self.text_font, width=240, fg_color='#FFF8DC', text_color='#2B1B17')
+        entry.pack(pady=18)
+        submit_button = ctk.CTkButton(popup, text="生成", command=submit, width=180, fg_color='#F5E6CB', text_color='#8B2323', hover_color='#DAA520')
+        submit_button.pack(pady=18)
 
     def query_emperors_by_dynasty(self):
         """按朝代查询皇帝"""
@@ -580,13 +578,13 @@ class EmperorApp:
             
             popup.destroy()
         
-        ctk.CTkLabel(popup, text="请选择朝代：", font=self.button_font, text_color='#2B1B17').pack(pady=20)
+        ctk.CTkLabel(popup, text="请选择朝代：", font=self.button_font, text_color='#2B1B17').pack(pady=25)
         dynasties = ["时间轴", "总览"] + self.generator.get_dynasties_list()
-        combo = ctk.CTkOptionMenu(popup, values=dynasties, font=self.text_font, width=200, fg_color='#FFF8DC', text_color='#2B1B17', button_color='#F5E6CB', button_hover_color='#DAA520')
+        combo = ctk.CTkOptionMenu(popup, values=dynasties, font=self.text_font, width=240, fg_color='#FFF8DC', text_color='#2B1B17', button_color='#F5E6CB', button_hover_color='#DAA520')
         combo.set("时间轴")
-        combo.pack(pady=15)
-        submit_button = ctk.CTkButton(popup, text="查询", command=submit, width=150, fg_color='#F5E6CB', text_color='#8B2323', hover_color='#DAA520')
-        submit_button.pack(pady=15)
+        combo.pack(pady=18)
+        submit_button = ctk.CTkButton(popup, text="查询", command=submit, width=180, fg_color='#F5E6CB', text_color='#8B2323', hover_color='#DAA520')
+        submit_button.pack(pady=18)
 
     def _on_click(self, event):
         for tag in self.display_text.tag_names("current"):
@@ -594,7 +592,7 @@ class EmperorApp:
                 url = tag.replace("link_", "")
                 webbrowser.open(url)
 
-    def create_popup(self, title, width=400, height=250):
+    def create_popup(self, title, width=480, height=300):  # 增加弹窗大小以适应更大的字体
         popup = ctk.CTkToplevel(self.root)
         if self.is_traditional:
             title = self.convert_text(title, True)
@@ -744,10 +742,10 @@ class EmperorApp:
         plt.show()
 
     def create_advanced_search_dialog(self):
-        dialog = self.create_popup("高级搜索" if not self.is_traditional else "進階搜索", width=400, height=600)
+        dialog = self.create_popup("高级搜索" if not self.is_traditional else "進階搜索", width=480, height=720)  # 增加高度以适应更大字体
         
-        search_frame = ctk.CTkFrame(dialog, fg_color='#FFFFFF')  # 白色背景
-        search_frame.pack(fill="x", padx=10, pady=5)
+        search_frame = ctk.CTkFrame(dialog, fg_color='#FFFFFF')
+        search_frame.pack(fill="x", padx=12, pady=6)
         
         fields = {
             'dynasty': '朝代',
@@ -762,24 +760,24 @@ class EmperorApp:
         entries = {}
         for key, label in fields.items():
             frame = ctk.CTkFrame(search_frame, fg_color='#FFFFFF')
-            frame.pack(fill="x", pady=2)
-            ctk.CTkLabel(frame, text=f"{label}:", font=('微软雅黑', 11), text_color='#2B1B17', width=80, anchor="e").pack(side="left", padx=5)
-            entry = ctk.CTkEntry(frame, font=('微软雅黑', 11), fg_color='#FFF8DC', text_color='#2B1B17')
-            entry.pack(side="left", fill="x", expand=True, padx=5)
+            frame.pack(fill="x", pady=3)
+            ctk.CTkLabel(frame, text=f"{label}：", font=('微软雅黑', 14), text_color='#2B1B17', width=96, anchor="e").pack(side="left", padx=6)  # 原11，放大到14
+            entry = ctk.CTkEntry(frame, font=('微软雅黑', 14), fg_color='#FFF8DC', text_color='#2B1B17')  # 原11，放大到14
+            entry.pack(side="left", fill="x", expand=True, padx=6)
             entries[key] = entry
         
         options_frame = ctk.CTkFrame(dialog, fg_color='#FFFFFF')
-        options_frame.pack(fill="x", padx=10, pady=5)
+        options_frame.pack(fill="x", padx=12, pady=6)
         
         match_var = ctk.StringVar(value="any")
-        ctk.CTkRadioButton(options_frame, text="匹配任意条件" if not self.is_traditional else "匹配任意條件", variable=match_var, value="any", font=('微软雅黑', 11), text_color='#2B1B17').pack(anchor="w")
-        ctk.CTkRadioButton(options_frame, text="匹配所有条件" if not self.is_traditional else "匹配所有條件", variable=match_var, value="all", font=('微软雅黑', 11), text_color='#2B1B17').pack(anchor="w")
+        ctk.CTkRadioButton(options_frame, text="匹配任意条件" if not self.is_traditional else "匹配任意條件", variable=match_var, value="any", font=('微软雅黑', 14), text_color='#2B1B17').pack(anchor="w")  # 原11，放大到14
+        ctk.CTkRadioButton(options_frame, text="匹配所有条件" if not self.is_traditional else "匹配所有條件", variable=match_var, value="all", font=('微软雅黑', 14), text_color='#2B1B17').pack(anchor="w")  # 原11，放大到14
         
         case_sensitive = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(options_frame, text="区分大小写" if not self.is_traditional else "區分大小寫", variable=case_sensitive, font=('微软雅黑', 11), text_color='#2B1B17').pack(anchor="w")
+        ctk.CTkCheckBox(options_frame, text="区分大小写" if not self.is_traditional else "區分大小寫", variable=case_sensitive, font=('微软雅黑', 14), text_color='#2B1B17').pack(anchor="w")  # 原11，放大到14
         
         sort_frame = ctk.CTkFrame(dialog, fg_color='#FFFFFF')
-        sort_frame.pack(fill="x", padx=10, pady=5)
+        sort_frame.pack(fill="x", padx=12, pady=6)
         
         self.sort_var = ctk.StringVar(value='dynasty')
         sort_options = [
@@ -796,8 +794,8 @@ class EmperorApp:
         
         self.sort_buttons = []
         for text, value in sort_options:
-            rb = ctk.CTkRadioButton(sort_frame, text=text, variable=self.sort_var, value=value, font=('微软雅黑', 11), text_color='#2B1B17')
-            rb.pack(anchor="w", pady=2)
+            rb = ctk.CTkRadioButton(sort_frame, text=text, variable=self.sort_var, value=value, font=('微软雅黑', 14), text_color='#2B1B17')  # 原11，放大到14
+            rb.pack(anchor="w", pady=3)
             self.sort_buttons.append(rb)
         
         def do_search():
@@ -808,13 +806,13 @@ class EmperorApp:
             dialog.destroy()
         
         button_frame = ctk.CTkFrame(dialog, fg_color='#FFFFFF')
-        button_frame.pack(fill="x", padx=10, pady=10)
+        button_frame.pack(fill="x", padx=12, pady=12)
         
-        search_btn = ctk.CTkButton(button_frame, text="搜索" if not self.is_traditional else "搜索", command=do_search, font=('微软雅黑', 11), fg_color='#F5E6CB', text_color='#8B2323', hover_color='#DAA520')
+        search_btn = ctk.CTkButton(button_frame, text="搜索" if not self.is_traditional else "搜索", command=do_search, font=('微软雅黑', 14), fg_color='#F5E6CB', text_color='#8B2323', hover_color='#DAA520')  # 原11，放大到14
         search_btn.pack(side="right")
         
-        cancel_btn = ctk.CTkButton(button_frame, text="取消" if not self.is_traditional else "取消", command=dialog.destroy, font=('微软雅黑', 11), fg_color='#F5E6CB', text_color='#8B2323', hover_color='#DAA520')
-        cancel_btn.pack(side="right", padx=5)
+        cancel_btn = ctk.CTkButton(button_frame, text="取消" if not self.is_traditional else "取消", command=dialog.destroy, font=('微软雅黑', 14), fg_color='#F5E6CB', text_color='#8B2323', hover_color='#DAA520')  # 原11，放大到14
+        cancel_btn.pack(side="right", padx=6)
 
     def advanced_search(self, criteria, match_all=False, case_sensitive=False):
         results = []
@@ -977,12 +975,14 @@ class EmperorApp:
             def get_start_year(emp):
                 reign = emp.get('reign_period', '')
                 try:
-                    year_str = reign.split('-')[0].strip()
-                    if '前' in year_str:
-                        year = -int(''.join(filter(str.isdigit, year_str)))
-                    else:
-                        year = int(''.join(filter(str.isdigit, year_str)))
-                    return year
+                    if '-' in reign:
+                        year_str = reign.split('-')[0].strip()
+                        if '前' in year_str:
+                            year = -int(''.join(filter(str.isdigit, year_str)))
+                        else:
+                            year = int(''.join(filter(str.isdigit, year_str)))
+                        return year
+                    return 9999
                 except:
                     return 9999
             sorted_emperors = sorted(emperors, key=get_start_year)
@@ -1003,12 +1003,14 @@ class EmperorApp:
             def get_start_year(emp):
                 reign = emp.get('reign_period', '')
                 try:
-                    year_str = reign.split('-')[0].strip()
-                    if '前' in year_str:
-                        year = -int(''.join(filter(str.isdigit, year_str)))
-                    else:
-                        year = int(''.join(filter(str.isdigit, year_str)))
-                    return year
+                    if '-' in reign:
+                        year_str = reign.split('-')[0].strip()
+                        if '前' in year_str:
+                            year = -int(''.join(filter(str.isdigit, year_str)))
+                        else:
+                            year = int(''.join(filter(str.isdigit, year_str)))
+                        return year
+                    return 9999
                 except:
                     return 9999
             
@@ -1239,7 +1241,7 @@ class EmperorApp:
     def _show_analysis_plots(self, stats):
         plot_window = ctk.CTkToplevel(self.root)
         plot_window.title("统计图表")
-        plot_window.geometry("1320x660")
+        plot_window.geometry("1600x800")
         
         if self.has_icon:
             icon_path = self.get_icon_path()
@@ -1262,24 +1264,26 @@ class EmperorApp:
         def plot_dynasty_counts():
             dynasties = list(stats['dynasty_stats'].keys())
             emperor_counts = [data['count'] for data in stats['dynasty_stats'].values()]
-            fig = plt.figure(figsize=(12, 6))
+            fig = plt.figure(figsize=(16, 8))
             plt.bar(dynasties, emperor_counts)
-            plt.xlabel("朝代")
-            plt.ylabel('\n'.join('皇帝数量'), rotation=0, ha='right', va='center')
-            plt.title("各朝代皇帝数量")
-            plt.xticks(rotation=45, ha='right')
+            plt.xlabel("朝代", fontsize=18)  # 放大x轴标签字体
+            plt.ylabel('\n'.join('皇帝数量'), rotation=0, ha='right', va='center', fontsize=18)  # 放大y轴标签字体
+            plt.title("各朝代皇帝数量", fontsize=20)  # 放大标题字体
+            plt.xticks(rotation=45, ha='right', fontsize=16)  # 放大x轴刻度字体
+            plt.yticks(fontsize=16)  # 放大y轴刻度字体
             plt.tight_layout()
             return fig
 
         def plot_avg_reigns():
             dynasties = list(stats['dynasty_stats'].keys())
             avg_reigns = [data['avg_reign'] for _, data in stats['dynasty_stats'].items()]
-            fig = plt.figure(figsize=(12, 6))
+            fig = plt.figure(figsize=(16, 8))
             plt.bar(dynasties, avg_reigns)
-            plt.xlabel("朝代")
-            plt.ylabel('\n'.join('平均在位时间'), rotation=0, ha='right', va='center')
-            plt.title("各朝代平均在位时间")
-            plt.xticks(rotation=45, ha='right')
+            plt.xlabel("朝代", fontsize=18)
+            plt.ylabel('\n'.join('平均在位时间'), rotation=0, ha='right', va='center', fontsize=18)
+            plt.title("各朝代平均在位时间", fontsize=20)
+            plt.xticks(rotation=45, ha='right', fontsize=16)
+            plt.yticks(fontsize=16)
             plt.tight_layout()
             return fig
 
@@ -1287,12 +1291,13 @@ class EmperorApp:
             top_50_chars = sorted(stats['name_stats'].items(), key=lambda x: x[1], reverse=True)[:50]
             chars = [char for char, _ in top_50_chars]
             counts = [count for _, count in top_50_chars]
-            fig = plt.figure(figsize=(12, 6))
+            fig = plt.figure(figsize=(16, 8))
             plt.bar(chars, counts)
-            plt.xlabel("字")
-            plt.ylabel('\n'.join('出现次数'), rotation=0, ha='right', va='center')
-            plt.title("名字用字TOP50")
-            plt.xticks(rotation=45, ha='right')
+            plt.xlabel("字", fontsize=18)
+            plt.ylabel('\n'.join('出现次数'), rotation=0, ha='right', va='center', fontsize=18)
+            plt.title("名字用字TOP50", fontsize=20)
+            plt.xticks(rotation=45, ha='right', fontsize=16)
+            plt.yticks(fontsize=16)
             plt.tight_layout()
             return fig
 
@@ -1300,12 +1305,13 @@ class EmperorApp:
             top_50_era_chars = sorted(stats['era_name_stats'].items(), key=lambda x: x[1], reverse=True)[:50]
             era_chars = [char for char, _ in top_50_era_chars]
             era_counts = [count for _, count in top_50_era_chars]
-            fig = plt.figure(figsize=(12, 6))
+            fig = plt.figure(figsize=(16, 8))
             plt.bar(era_chars, era_counts)
-            plt.xlabel("字")
-            plt.ylabel('\n'.join('出现次数'), rotation=0, ha='right', va='center')
-            plt.title("年号用字TOP50")
-            plt.xticks(rotation=45, ha='right')
+            plt.xlabel("字", fontsize=18)
+            plt.ylabel('\n'.join('出现次数'), rotation=0, ha='right', va='center', fontsize=18)
+            plt.title("年号用字TOP50", fontsize=20)
+            plt.xticks(rotation=45, ha='right', fontsize=16)
+            plt.yticks(fontsize=16)
             plt.tight_layout()
             return fig
 
@@ -1313,12 +1319,13 @@ class EmperorApp:
             top_50_temple_chars = sorted(stats['temple_name_stats'].items(), key=lambda x: x[1], reverse=True)[:50]
             temple_chars = [char for char, _ in top_50_temple_chars]
             temple_counts = [count for _, count in top_50_temple_chars]
-            fig = plt.figure(figsize=(12, 6))
+            fig = plt.figure(figsize=(16, 8))
             plt.bar(temple_chars, temple_counts)
-            plt.xlabel("字")
-            plt.ylabel('\n'.join('出现次数'), rotation=0, ha='right', va='center')
-            plt.title("庙号用字TOP50")
-            plt.xticks(rotation=45, ha='right')
+            plt.xlabel("字", fontsize=18)
+            plt.ylabel('\n'.join('出现次数'), rotation=0, ha='right', va='center', fontsize=18)
+            plt.title("庙号用字TOP50", fontsize=20)
+            plt.xticks(rotation=45, ha='right', fontsize=16)
+            plt.yticks(fontsize=16)
             plt.tight_layout()
             return fig
 
@@ -1326,12 +1333,13 @@ class EmperorApp:
             top_50_posthumous_chars = sorted(stats['posthumous_name_stats'].items(), key=lambda x: x[1], reverse=True)[:50]
             posthumous_chars = [char for char, _ in top_50_posthumous_chars]
             posthumous_counts = [count for _, count in top_50_posthumous_chars]
-            fig = plt.figure(figsize=(12, 6))
+            fig = plt.figure(figsize=(16, 8))
             plt.bar(posthumous_chars, posthumous_counts)
-            plt.xlabel("字")
-            plt.ylabel('\n'.join('出现次数'), rotation=0, ha='right', va='center')
-            plt.title("谥号用字TOP50")
-            plt.xticks(rotation=45, ha='right')
+            plt.xlabel("字", fontsize=18)
+            plt.ylabel('\n'.join('出现次数'), rotation=0, ha='right', va='center', fontsize=18)
+            plt.title("谥号用字TOP50", fontsize=20)
+            plt.xticks(rotation=45, ha='right', fontsize=16)
+            plt.yticks(fontsize=16)
             plt.tight_layout()
             return fig
 
