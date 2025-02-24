@@ -23,7 +23,7 @@ class AIChatWindow:
         # 创建窗口
         self.window = tk.Toplevel(parent)
         self.window.title("AI历史顾问（请保持网络连接)")
-        self.window.geometry("380x500")  # 更小的窗口尺寸
+        self.window.geometry("490x700")  # 更小的窗口尺寸
         
         # 设置窗口背景色为暖色调
         self.window.configure(bg='#FFF8F3')  # 米白色背景
@@ -60,7 +60,7 @@ class AIChatWindow:
         title_label = ttk.Label(
             self.window,
             text="AI历史顾问",
-            font=('微软雅黑', 14),
+            font=('微软雅黑', 18),
             foreground='#8B4513',  # 暖棕色
             background='#FFF8F3'
         )
@@ -71,7 +71,7 @@ class AIChatWindow:
             self.window,
             wrap=tk.WORD,
             state=tk.DISABLED,
-            font=('微软雅黑', 9),
+            font=('微软雅黑', 14),
             bg='#FFFAF5',  # 更浅的米色
             fg='#5C4033',  # 深棕色文字
             relief='flat',
