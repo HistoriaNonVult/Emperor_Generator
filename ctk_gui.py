@@ -70,6 +70,7 @@ class EmperorApp:
             self.has_icon = True
         except Exception as e:
             print(f"无法加载图标: {e}")
+            messagebox.showerror("图标加载错误", "无法加载图标，请检查文件路径和文件格式。")
         
         window_width = 900  # 稍微增加窗口宽度以适应更大的字体
         window_height = 900  # 稍微增加窗口高度
@@ -126,11 +127,15 @@ class EmperorApp:
 
     def create_widgets(self):
         THEME_COLORS = {
-            'primary': '#8B0000',     # 深红色：象征皇权
-            'secondary': '#704214',   # 深褐色：象征历史的沉淀
-            'accent': '#DAA520',      # 古铜金：象征皇家气派
-            'text': '#2B1B17',        # 墨黑色：典籍颜色
-            'bg': '#EBEBEB'           # customtkinter light模式的默认背景色
+            'primary': '#8B0000',     # 深红色：皇权
+            'secondary': '#704214',   # 深褐色：历史沉淀
+            'accent': '#DAA520',      # 古铜金：皇家气派
+            'text': '#2B1B17',        # 墨黑色：典籍
+            'bg': '#EBEBEB',          # 背景色
+            'scrollbar_bg': '#D3D3D3',    # 现代灰色背景，略透明
+            'scrollbar_button': '#A9A9A9', # 滑块默认颜色（深灰）
+            'scrollbar_hover': '#FFD700',  # 滑块悬停时为亮金色，现代与古典结合
+            'scrollbar_active': '#FF4500', # 滑块拖动时的活跃颜色（橘红）
         }
 
         # 主窗口使用 CTkFrame 保持 customtkinter 风格
@@ -338,10 +343,26 @@ class EmperorApp:
         )
         
         # 添加 customtkinter 滚动条
-        scrollbar = ctk.CTkScrollbar(text_frame, orientation="vertical", command=self.display_text.yview)
-        scrollbar.pack(side="right", fill="y")
-        self.display_text.configure(yscrollcommand=scrollbar.set)
+        # scrollbar = ctk.CTkScrollbar(text_frame, orientation="vertical", command=self.display_text.yview)
+        # scrollbar.pack(side="right", fill="y")
+        # self.display_text.configure(yscrollcommand=scrollbar.set)
         
+        # 改进后的代码
+        scrollbar = ctk.CTkScrollbar(
+            text_frame,
+            orientation="vertical",
+            command=self.display_text.yview,
+            fg_color=THEME_COLORS['scrollbar_bg'],      # 滚动条背景色
+            button_color=THEME_COLORS['scrollbar_button'],  # 滑块默认颜色
+            button_hover_color=THEME_COLORS['scrollbar_hover'],  # 滑块悬停颜色
+            border_spacing=2,                           # 滑块与边缘的间距
+            minimum_pixel_length=22,                    # 滑块最小长度
+            corner_radius=6,                            # 圆角半径，与按钮风格一致
+            width=18                                    # 宽度稍增加，增强可操作性
+        )
+        scrollbar.pack(side="right", fill="y", padx=2)  # 增加一点间距，避免紧贴文本框
+        self.display_text.configure(yscrollcommand=scrollbar.set)
+
         self.display_text.pack(side="left", fill="both", expand=True)
         
         def on_mousewheel(event):
@@ -425,19 +446,58 @@ class EmperorApp:
         """重新应用文本标签（如超链接）"""
         content = self.display_text.get("1.0", "end").strip().split('\n\n')
         self.display_text.delete("1.0", "end")
+        
+        link_count = 0
         for paragraph in content:
             if paragraph:
                 lines = paragraph.split('\n')
+                emperor_info = {}
+                
+                # 首先收集皇帝信息
+                for line in lines:
+                    if "：" in line:
+                        parts = line.split("：", 1)
+                        if len(parts) == 2:
+                            key, value = parts
+                            emperor_info[key.strip()] = value.strip()
+                
+                # 处理段落中的每一行
                 for line in lines:
                     if "查看详细资料" in line or "查看詳細資料" in line:
                         start_index = self.display_text.index("end-1c linestart")
                         self.display_text.insert("end", line + "\n")
                         end_index = self.display_text.index("end-1c")
+                        
+                        # 创建唯一的标签名
+                        link_tag = f"link_{link_count}"
+                        link_count += 1
+                        
+                        # 构建搜索URL
+                        search_parts = []
+                        if "朝代" in emperor_info:
+                            search_parts.append(emperor_info["朝代"])
+                        if "称号" in emperor_info or "稱號" in emperor_info:
+                            search_parts.append(emperor_info.get("称号", emperor_info.get("稱號", "")))
+                        if "名讳" in emperor_info or "名諱" in emperor_info:
+                            search_parts.append(emperor_info.get("名讳", emperor_info.get("名諱", "")))
+                        
+                        search_term = " ".join(filter(None, search_parts))
+                        from urllib.parse import quote
+                        encoded_term = quote(search_term)
+                        url = f"https://cn.bing.com/search?q={encoded_term}"
+                        
+                        # 添加标签和绑定事件
+                        self.display_text.tag_add(link_tag, start_index, end_index)
                         self.display_text.tag_add("hyperlink", start_index, end_index)
-                        url = "https://www.bing.com/search?q=" + lines[0].split("：")[1]  # 示例URL
-                        self.display_text.tag_bind("hyperlink", "<Button-1>", lambda e, u=url: webbrowser.open(u))
+                        
+                        # 使用闭包捕获当前URL值
+                        def make_callback(url):
+                            return lambda e: webbrowser.open(url)
+                        
+                        self.display_text.tag_bind(link_tag, "<Button-1>", make_callback(url))
                     else:
                         self.display_text.insert("end", line + "\n")
+                
                 self.display_text.insert("end", "\n")
 
     def insert_emperor_with_link(self, emperor):
@@ -514,7 +574,7 @@ class EmperorApp:
                 messagebox.showerror("输入错误", "请输入一个有效的正整数")
 
         popup = self.create_popup("生成多位皇帝")
-        ctk.CTkLabel(popup, text="请输入想生成的皇帝数量：", font=self.button_font).pack(pady=25)
+        ctk.CTkLabel(popup, text="请输入想生成的皇帝数量：", font=('华文行楷', 21)).pack(pady=20)
         entry = ctk.CTkEntry(popup, font=self.text_font, width=240, fg_color='#FFF8DC', text_color='#2B1B17')
         entry.pack(pady=18)
         submit_button = ctk.CTkButton(popup, text="生成", command=submit, width=180, fg_color='#F5E6CB', text_color='#8B2323', hover_color='#DAA520')
@@ -592,7 +652,47 @@ class EmperorApp:
                 url = tag.replace("link_", "")
                 webbrowser.open(url)
 
-    def create_popup(self, title, width=480, height=300):  # 增加弹窗大小以适应更大的字体
+    def _set_icon_for_toplevel(self, toplevel):
+        """为CTkToplevel窗口设置图标的特殊方法"""
+        try:
+            # 获取底层的tk窗口
+            toplevel_tk = toplevel.winfo_toplevel()
+            
+            # 尝试使用wm_iconbitmap
+            if self.icon_path.lower().endswith('.ico'):
+                toplevel_tk.wm_iconbitmap(self.icon_path)
+                # 重要：防止图标被覆盖
+                toplevel_tk.after(100, lambda: toplevel_tk.wm_iconbitmap(self.icon_path))
+                toplevel_tk.after(500, lambda: toplevel_tk.wm_iconbitmap(self.icon_path))
+                print(f"成功为弹窗设置图标(wm_iconbitmap): {self.icon_path}")
+            else:
+                # 对于非ico文件，使用iconphoto
+                icon = tk.PhotoImage(file=self.icon_path)
+                toplevel_tk.wm_iconphoto(True, icon)
+                # 保存引用防止垃圾回收
+                toplevel_tk.icon_ref = icon
+                print("成功为弹窗设置图标(wm_iconphoto)")
+        except Exception as e:
+            print(f"设置弹窗图标失败: {e}")
+            
+            # 备用方法：尝试直接使用tk的方法
+            try:
+                if hasattr(toplevel, '_root'):
+                    if self.icon_path.lower().endswith('.ico'):
+                        toplevel._root().iconbitmap(self.icon_path)
+                        # 重要：防止图标被覆盖
+                        toplevel._root().after(100, lambda: toplevel._root().iconbitmap(self.icon_path))
+                        toplevel._root().after(500, lambda: toplevel._root().iconbitmap(self.icon_path))
+                    else:
+                        icon = tk.PhotoImage(file=self.icon_path)
+                        toplevel._root().iconphoto(True, icon)
+                        # 保存引用防止垃圾回收
+                        toplevel._root().icon_ref = icon
+                    print("使用备用方法成功设置图标")
+            except Exception as e2:
+                print(f"备用方法也失败: {e2}")
+
+    def create_popup(self, title, width=480, height=300):
         popup = ctk.CTkToplevel(self.root)
         if self.is_traditional:
             title = self.convert_text(title, True)
@@ -600,13 +700,26 @@ class EmperorApp:
         popup.geometry(f"{width}x{height}")
         popup.resizable(False, False)
         
-        if self.has_icon:
-            icon_path = self.get_icon_path()
-            if icon_path:
-                try:
-                    popup.iconbitmap(icon_path)
-                except Exception as e:
-                    print(f"无法为弹窗加载图标: {e}")
+        # 为弹窗设置图标 - 使用多次延迟设置防止被覆盖
+        if self.icon_path and os.path.exists(self.icon_path):
+            try:
+                # 立即尝试设置一次
+                self._set_icon_for_toplevel(popup)
+                # 然后在窗口完全加载后再次设置
+                popup.after(10, lambda: self._set_icon_for_toplevel(popup))
+                popup.after(100, lambda: self._set_icon_for_toplevel(popup))
+                # 再延迟设置一次，确保不被其他操作覆盖
+                popup.after(500, lambda: self._set_icon_for_toplevel(popup))
+            except Exception as e:
+                print(f"为弹窗设置图标失败: {e}")
+        
+        # 确保弹窗在前台显示
+        popup.lift()
+        popup.focus_force()
+        popup.grab_set()  # 添加模态特性，防止用户与主窗口交互
+        
+        # 保存对图标路径的引用，防止被垃圾回收
+        popup.icon_path_ref = self.icon_path
         
         return popup
 
@@ -623,6 +736,14 @@ class EmperorApp:
         try:
             api_key = 'sk-0937b0ede5ea49ae9ceaa9cecfe8a690'
             self.chat_window = AIChatWindow(self.root, api_key)
+            
+            # 为聊天窗口设置图标 - 使用多次延迟设置
+            if hasattr(self.chat_window, 'window') and self.icon_path and os.path.exists(self.icon_path):
+                self.chat_window.window.after(10, lambda: self._set_icon_for_toplevel(self.chat_window.window))
+                self.chat_window.window.after(100, lambda: self._set_icon_for_toplevel(self.chat_window.window))
+                self.chat_window.window.after(500, lambda: self._set_icon_for_toplevel(self.chat_window.window))
+                # 保存引用防止垃圾回收
+                self.chat_window.window.icon_path_ref = self.icon_path
         except Exception as e:
             messagebox.showerror("错误", f"无法打开聊天窗口：{str(e)}")
 
@@ -742,7 +863,7 @@ class EmperorApp:
         plt.show()
 
     def create_advanced_search_dialog(self):
-        dialog = self.create_popup("高级搜索" if not self.is_traditional else "進階搜索", width=480, height=720)  # 增加高度以适应更大字体
+        dialog = self.create_popup("高级搜索" if not self.is_traditional else "進階搜索", width=380, height=520)  # 增加高度以适应更大字体
         
         search_frame = ctk.CTkFrame(dialog, fg_color='#FFFFFF')
         search_frame.pack(fill="x", padx=12, pady=6)
@@ -958,7 +1079,7 @@ class EmperorApp:
                         '名讳': 'name', '名諱': 'name',
                         '在位': 'reign_period',
                         '庙号': 'temple_name', '廟號': 'temple_name',
-                        '谥号': 'posthumous_name', '諡號': 'posthumous_name',
+                        '谥号': 'posthumous_name', '謚號': 'posthumous_name',
                         '年号': 'era_names', '年號': 'era_names'
                     }
                     if key in field_mapping:
