@@ -92,6 +92,9 @@ class EmperorApp:
         self.root.bind('<Right>', lambda e: self._move_window('right'))
         self.root.bind('<Up>', lambda e: self._move_window('up'))
         self.root.bind('<Down>', lambda e: self._move_window('down'))
+        
+        # 添加一个属性用于跟踪当前显示的皇帝
+        self.displayed_emperors = []
 
     def check_vpn_status(self):
         global can_access_google
@@ -550,6 +553,10 @@ class EmperorApp:
         emperor = self.generator.generate_random_emperor()
         self.display_text.delete("1.0", "end")
         self.display_text.insert("end", "随机生成的皇帝：\n\n")
+        
+        # 保存当前显示的皇帝
+        self.displayed_emperors = [emperor]
+        
         self.insert_emperor_with_link(emperor)
 
     def generate_multiple_emperors(self):
@@ -566,6 +573,10 @@ class EmperorApp:
                 emperors = self.generator.generate_multiple_emperors(count)
                 self.display_text.delete("1.0", "end")
                 self.display_text.insert("end", f"随机生成的{len(emperors)}位皇帝：\n\n")
+                
+                # 保存当前显示的皇帝
+                self.displayed_emperors = emperors.copy()
+                
                 for i, emp in enumerate(emperors, 1):
                     self.display_text.insert("end", f"第{i}位：\n")
                     self.insert_emperor_with_link(emp)
@@ -591,6 +602,10 @@ class EmperorApp:
                 return
             
             self.display_text.delete("1.0", "end")
+            
+            # 清空当前显示的皇帝列表
+            self.displayed_emperors = []
+            
             if selected_dynasty == "时间轴" or selected_dynasty == self.convert_text("时间轴", True):
                 self.show_dynasty_timeline()
             elif selected_dynasty == "总览" or selected_dynasty == self.convert_text("总览", True):
@@ -623,11 +638,15 @@ class EmperorApp:
                     if self.is_traditional:
                         title = self.convert_text(title, True)
                     self.display_text.insert("end", title, "section_title")
-                    displayed_emperors = set()
+                    
+                    # 保存当前显示的皇帝
+                    self.displayed_emperors = emperors.copy()
+                    
+                    displayed_set = set()
                     for emp in emperors:
                         emp_id = f"{emp['title']}_{emp['name']}"
-                        if emp_id not in displayed_emperors:
-                            displayed_emperors.add(emp_id)
+                        if emp_id not in displayed_set:
+                            displayed_set.add(emp_id)
                             self.insert_emperor_with_link(emp)
                             self.display_text.insert("end", "\n")
                 else:
@@ -984,12 +1003,17 @@ class EmperorApp:
             if self.is_traditional:
                 msg = self.convert_text(msg, True)
             self.display_text.insert("end", msg)
+            self.displayed_emperors = []  # 清空当前显示的皇帝列表
             return
         
         title = f"找到 {len(results)} 条匹配结果：\n\n"
         if self.is_traditional:
             title = self.convert_text(title, True)
         self.display_text.insert("end", title, "section_title")
+        
+        # 保存当前显示的皇帝列表
+        self.displayed_emperors = results.copy()
+        
         for emperor in results:
             self.insert_emperor_with_link(emperor)
 
@@ -1052,46 +1076,25 @@ class EmperorApp:
         return results
 
     def resort_results(self):
+        """根据选择的方式重新排序结果"""
+        # 如果没有显示的皇帝，直接返回
+        if not self.displayed_emperors:
+            return
+        
+        # 获取当前文本的第一行作为标题（如果有）
+        title_line = ""
         current_text = self.display_text.get("1.0", "end-1c")
-        if not current_text.strip():
-            return
+        if current_text:
+            first_line = current_text.split('\n', 1)[0]
+            if "随机生成" in first_line or "找到" in first_line or "皇帝列表" in first_line:
+                title_line = first_line
         
-        emperors = []
-        current_emperor = {}
-        paragraphs = current_text.split('\n\n')
-        count = 0
-        
-        for paragraph in paragraphs:
-            if not paragraph.strip() or "随机生成" in paragraph:
-                continue
-            current_emperor = {}
-            lines = paragraph.split('\n')
-            for line in lines:
-                if ':' in line or '：' in line:
-                    if '第' in line and '位' in line:
-                        continue
-                    key, value = line.replace('：', ':').split(':', 1)
-                    key = key.strip()
-                    value = value.strip()
-                    field_mapping = {
-                        '朝代': 'dynasty', '政权': 'dynasty',
-                        '称号': 'title', '稱號': 'title',
-                        '名讳': 'name', '名諱': 'name',
-                        '在位': 'reign_period',
-                        '庙号': 'temple_name', '廟號': 'temple_name',
-                        '谥号': 'posthumous_name', '謚號': 'posthumous_name',
-                        '年号': 'era_names', '年號': 'era_names'
-                    }
-                    if key in field_mapping:
-                        current_emperor[field_mapping[key]] = value
-            if current_emperor:
-                emperors.append(current_emperor)
-                count += 1
-        
-        if not emperors:
-            return
-        
+        # 根据选择的方式排序
         sort_type = self.sort_var.get()
+        
+        # 创建一个副本进行排序，避免修改原始列表
+        emperors_to_sort = self.displayed_emperors.copy()
+        
         if sort_type == 'year':
             def get_start_year(emp):
                 reign = emp.get('reign_period', '')
@@ -1106,19 +1109,23 @@ class EmperorApp:
                     return 9999
                 except:
                     return 9999
-            sorted_emperors = sorted(emperors, key=get_start_year)
+            sorted_emperors = sorted(emperors_to_sort, key=get_start_year)
+        
         elif sort_type == 'dynasty':
+            dynasty_order = [
+                "秦朝", "西汉", "新朝", "东汉", "曹魏", "蜀汉", "东吴", "西晋", "东晋",
+                "刘宋", "南齐", "南梁", "陈", "北魏", "东魏", "西魏", "北齐", "北周",
+                "隋朝", "唐朝", "后梁", "后唐", "后晋", "后汉", "后周", "北宋",
+                "辽", "金", "南宋", "元朝", "明朝", "大顺", "南明", "清朝"
+            ]
+            
             def get_dynasty_order(dynasty):
-                dynasty_order = [
-                    "秦朝", "西汉", "新朝", "东汉", "曹魏", "蜀汉", "东吴", "西晋", "东晋",
-                    "刘宋", "南齐", "南梁", "陈", "北魏", "东魏", "西魏", "北齐", "北周",
-                    "隋朝", "唐朝", "后梁", "后唐", "后晋", "后汉", "后周", "北宋",
-                    "辽", "金", "南宋", "元朝", "明朝", "大顺", "南明", "清朝"
-                ]
+                if not dynasty:
+                    return len(dynasty_order)
                 dynasty = dynasty.replace("政权", "").replace("朝", "").strip()
-                for d in dynasty_order:
+                for i, d in enumerate(dynasty_order):
                     if dynasty in d:
-                        return dynasty_order.index(d)
+                        return i
                 return len(dynasty_order)
             
             def get_start_year(emp):
@@ -1135,11 +1142,8 @@ class EmperorApp:
                 except:
                     return 9999
             
-            def get_sort_key(emp):
-                dynasty = emp.get('dynasty', '')
-                return (get_dynasty_order(dynasty), get_start_year(emp))
-            
-            sorted_emperors = sorted(emperors, key=get_sort_key)
+            sorted_emperors = sorted(emperors_to_sort, key=lambda x: (get_dynasty_order(x.get('dynasty', '')), get_start_year(x)))
+        
         elif sort_type == 'reign_length':
             def get_reign_length(emperor):
                 if 'reign_period' not in emperor:
@@ -1154,40 +1158,30 @@ class EmperorApp:
                     return 0
                 except:
                     return 0
-            sorted_emperors = sorted(emperors, key=get_reign_length, reverse=True)
+            sorted_emperors = sorted(emperors_to_sort, key=get_reign_length, reverse=True)
+        else:
+            # 默认不排序
+            sorted_emperors = emperors_to_sort
         
+        # 清空文本框并重新显示排序后的皇帝
         self.display_text.delete("1.0", "end")
-        title = f"随机生成的{count}位皇帝：\n\n"
-        if self.is_traditional:
-            title = self.convert_text(title, True)
-        self.display_text.insert("end", title)
+        
+        # 添加标题（如果有）
+        if title_line:
+            self.display_text.insert("end", title_line + "\n\n")
+        
+        # 显示排序后的皇帝
+        emperor_count = len(sorted_emperors)
         for i, emperor in enumerate(sorted_emperors, 1):
-            number = f"第{i}位：\n"
-            if self.is_traditional:
-                number = self.convert_text(number, True)
-            self.display_text.insert("end", number)
-            for field, value in emperor.items():
-                field_display = {
-                    'dynasty': '朝代',
-                    'title': '称号',
-                    'name': '名讳',
-                    'reign_period': '在位',
-                    'temple_name': '庙号',
-                    'posthumous_name': '谥号',
-                    'era_names': '年号'
-                }
+            # 添加序号
+            if emperor_count > 1:
+                number = f"第{i}位：\n"
                 if self.is_traditional:
-                    field_display = {k: self.convert_text(v, True) for k, v in field_display.items()}
-                if field in field_display:
-                    self.display_text.insert("end", f"{field_display[field]}：{value}\n")
-            link_text = "查看詳細資料\n" if self.is_traditional else "查看详细资料\n"
-            start_index = self.display_text.index("end-1c")
-            self.display_text.insert("end", link_text, ("hyperlink", f"link_{i}"))
-            search_term = f"{emperor['dynasty']}{emperor['title']}"
-            if emperor['name']:
-                search_term += f"{emperor['name']}"
-            url = f"https://www.bing.com/search?q={search_term}"
-            self.display_text.tag_bind(f"link_{i}", "<Button-1>", lambda e, url=url: webbrowser.open(url))
+                    number = self.convert_text(number, True)
+                self.display_text.insert("end", number)
+            
+            # 显示皇帝信息
+            self.insert_emperor_with_link(emperor)
 
     def analyze_emperors(self):
         stats = {
