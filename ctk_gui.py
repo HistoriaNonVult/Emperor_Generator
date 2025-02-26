@@ -607,6 +607,7 @@ class EmperorApp:
             self.displayed_emperors = []
             
             if selected_dynasty == "时间轴" or selected_dynasty == self.convert_text("时间轴", True):
+                popup.destroy()
                 self.show_dynasty_timeline()
             elif selected_dynasty == "总览" or selected_dynasty == self.convert_text("总览", True):
                 title = "历代皇帝总览：\n\n"
@@ -870,14 +871,15 @@ class EmperorApp:
             note = self.convert_text(note, True)
         self.display_text.insert("end", note)
 
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(16, 8))
         dynasties = ["秦朝", "西汉", "新朝", "东汉", "曹魏", "蜀汉", "东吴", "西晋", "东晋", "刘宋", "南齐", "南梁", "陈", "北魏", "东魏", "西魏", "北齐", "北周", "隋朝", "唐朝", "后梁", "后唐", "后晋", "后汉", "后周", "北宋", "辽", "金", "南宋", "元朝", "明朝", "大顺", "南明", "清朝"]
         years = [15, 210, 14, 195, 45, 42, 58, 51, 103, 59, 23, 55, 32, 148, 16, 22, 27, 24, 38, 289, 16, 13, 11, 4, 9, 167, 209, 119, 152, 97, 276, 1, 18, 268]
         plt.bar(dynasties, years)
-        plt.xlabel("朝代")
-        plt.ylabel("国祚")
-        plt.title("国祚图")
-        plt.xticks(rotation=45, ha='right')
+        plt.xlabel("朝代", fontsize=18)
+        plt.ylabel("国祚", fontsize=18)
+        plt.title("国祚图", fontsize=20)
+        plt.xticks(rotation=45, ha='right', fontsize=14)
+        plt.yticks(fontsize=16)
         plt.tight_layout()
         plt.show()
 
