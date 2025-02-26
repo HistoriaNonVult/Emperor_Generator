@@ -167,7 +167,8 @@ class EmperorApp:
         self.search_label = ctk.CTkLabel(
             search_frame,
             text="搜索皇帝：",
-            font=self.button_font,  # 使用放大的button_font (16)
+            #font=self.button_font,  # 使用放大的button_font (16)
+            font=('华文行楷', 18), 
             text_color=THEME_COLORS['text']
         )
         self.search_label.pack(side='left', padx=(0, 12))
@@ -210,7 +211,7 @@ class EmperorApp:
         
         self.switch_button = ctk.CTkButton(
             control_frame,
-            text="繁體",
+            text="简体",
             command=self.toggle_traditional,
             font=('微软雅黑', 14),  # 原10，放大到14
             width=72,  # 增加宽度
