@@ -1,6 +1,6 @@
 """AI聊天窗口模块"""
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, filedialog, messagebox
 import customtkinter as ctk
 from openai import OpenAI
 import threading
@@ -81,6 +81,10 @@ class AIChatWindow:
         )
         self.chat_display.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
         
+        # 添加右键菜单绑定
+        self.chat_display.bind("<Button-3>", self.show_context_menu)  # Windows右键
+        self.chat_display.bind("<Button-2>", self.show_context_menu)  # Mac右键
+        
         # 底部输入区域
         input_frame = ttk.Frame(self.window)
         input_frame.pack(fill=tk.X, padx=10, pady=(0,10))
@@ -134,16 +138,16 @@ class AIChatWindow:
         elif direction == 'down':
             y += step
         
-        # 确保窗口不会移出屏幕
-        screen_width = self.window.winfo_screenwidth()
-        screen_height = self.window.winfo_screenheight()
-        window_width = self.window.winfo_width()
-        window_height = self.window.winfo_height()
+        # # 确保窗口不会移出屏幕
+        # screen_width = self.window.winfo_screenwidth()
+        # screen_height = self.window.winfo_screenheight()
+        # window_width = self.window.winfo_width()
+        # window_height = self.window.winfo_height()
         
-        # 限制x坐标范围
-        x = max(0, min(x, screen_width - window_width))
-        # 限制y坐标范围
-        y = max(0, min(y, screen_height - window_height))
+        # # 限制x坐标范围
+        # x = max(0, min(x, screen_width - window_width))
+        # # 限制y坐标范围
+        # y = max(0, min(y, screen_height - window_height))
         
         print(f"New position: x={x}, y={y}")  # 添加调试输出
         self.window.geometry(f"+{x}+{y}")
@@ -290,3 +294,46 @@ class AIChatWindow:
     def _on_closing(self):
         """窗口关闭时的处理"""
         self.window.destroy()
+
+    def create_context_menu(self):
+        """创建右键菜单"""
+        menu = tk.Menu(self.window, tearoff=0)
+        menu.add_command(label="导出聊天记录", command=self.export_chat)
+        return menu
+
+    def show_context_menu(self, event):
+        """显示右键菜单"""
+        menu = self.create_context_menu()
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def export_chat(self):
+        """导出聊天记录"""
+        content = self.chat_display.get("1.0", tk.END).strip()
+        if not content:
+            messagebox.showwarning("提示", "当前没有可导出的内容")
+            return
+
+        file_types = [
+            ('Excel 文件', '*.xlsx'),
+            ('CSV 文件', '*.csv'),
+            ('文本文件', '*.txt')
+        ]
+        
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=file_types,
+            title="导出聊天记录"
+        )
+        
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            messagebox.showinfo("成功", "聊天记录导出成功！")
+        except Exception as e:
+            messagebox.showerror("错误", f"导出失败：{str(e)}")

@@ -17,6 +17,9 @@ from emperor_generator import EmperorGenerator
 from data import emperor_text
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import tkinter.filedialog as filedialog
+import pandas as pd  # 需要安装：pip install pandas
+import csv
 
 can_access_google = None
 import matplotlib
@@ -54,6 +57,9 @@ class EmperorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("受命於天，既壽永昌")
+        
+        # 绑定关闭事件
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         self.root.attributes('-alpha', 0.0)
         self.chat_window = None
@@ -95,6 +101,10 @@ class EmperorApp:
         
         # 添加一个属性用于跟踪当前显示的皇帝
         self.displayed_emperors = []
+        
+        # 在创建display_text后添加右键菜单绑定
+        self.display_text.bind("<Button-3>", self.show_context_menu)  # Windows右键
+        self.display_text.bind("<Button-2>", self.show_context_menu)  # Mac右键
 
     def check_vpn_status(self):
         global can_access_google
@@ -1486,6 +1496,130 @@ class EmperorApp:
         except Exception as e:
             print(f"计算在位时长出错: {reign_period}, 错误: {str(e)}")
             return 0
+
+    def on_closing(self):
+        """处理窗口关闭事件"""
+        self.root.destroy()  # 销毁窗口
+        sys.exit()  # 确保程序完全退出
+
+    def create_context_menu(self):
+        """创建右键菜单"""
+        menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(
+            label="导出数据" if not self.is_traditional else "導出數據",
+            command=self.export_data,
+            font=("微软雅黑", 12)
+        )
+        return menu
+
+    def show_context_menu(self, event):
+        """显示右键菜单"""
+        menu = self.create_context_menu()
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def export_data(self):
+        """导出数据功能"""
+        if not self.displayed_emperors:
+            messagebox.showwarning(
+                "提示" if not self.is_traditional else "提示",
+                "当前没有可导出的数据" if not self.is_traditional else "當前沒有可導出的數據"
+            )
+            return
+
+        # 创建文件选择对话框
+        file_types = [
+            ('Excel 文件', '*.xlsx'),
+            ('CSV 文件', '*.csv'),
+            ('文本文件', '*.txt')
+        ]
+        
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=file_types,
+            title="保存数据" if not self.is_traditional else "保存數據"
+        )
+        
+        if not file_path:
+            return
+
+        try:
+            if file_path.endswith('.xlsx'):
+                self.export_to_excel(file_path)
+            elif file_path.endswith('.csv'):
+                self.export_to_csv(file_path)
+            else:
+                self.export_to_txt(file_path)
+                
+            messagebox.showinfo(
+                "成功" if not self.is_traditional else "成功",
+                "数据导出成功！" if not self.is_traditional else "數據導出成功！"
+            )
+        except Exception as e:
+            messagebox.showerror(
+                "错误" if not self.is_traditional else "錯誤",
+                f"导出失败：{str(e)}" if not self.is_traditional else f"導出失敗：{str(e)}"
+            )
+
+    def export_to_excel(self, file_path):
+        """导出到Excel文件"""
+        import pandas as pd
+        
+        data = []
+        for emperor in self.displayed_emperors:
+            data.append({
+                '朝代': emperor.get('dynasty', ''),
+                '称号': emperor.get('title', ''),
+                '名讳': emperor.get('name', ''),
+                '庙号': emperor.get('temple_name', ''),
+                '谥号': emperor.get('posthumous_name', ''),
+                '年号': ', '.join(emperor.get('era_names', [])),
+                '在位时间': emperor.get('reign_period', '')
+            })
+        
+        df = pd.DataFrame(data)
+        if self.is_traditional:
+            df.columns = [self.convert_text(col, True) for col in df.columns]
+            df = df.applymap(lambda x: self.convert_text(str(x), True) if pd.notnull(x) else x)
+        
+        df.to_excel(file_path, index=False, encoding='utf-8-sig')
+
+    def export_to_csv(self, file_path):
+        """导出到CSV文件"""
+        import csv
+        
+        headers = ['朝代', '称号', '名讳', '庙号', '谥号', '年号', '在位时间']
+        if self.is_traditional:
+            headers = [self.convert_text(h, True) for h in headers]
+        
+        with open(file_path, 'w', encoding='utf-8-sig', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+            
+            for emperor in self.displayed_emperors:
+                row = [
+                    emperor.get('dynasty', ''),
+                    emperor.get('title', ''),
+                    emperor.get('name', ''),
+                    emperor.get('temple_name', ''),
+                    emperor.get('posthumous_name', ''),
+                    ', '.join(emperor.get('era_names', [])),
+                    emperor.get('reign_period', '')
+                ]
+                if self.is_traditional:
+                    row = [self.convert_text(str(item), True) for item in row]
+                writer.writerow(row)
+
+    def export_to_txt(self, file_path):
+        """导出到文本文件"""
+        with open(file_path, 'w', encoding='utf-8') as f:
+            for emperor in self.displayed_emperors:
+                info = self.generator.format_emperor_info(emperor)
+                if self.is_traditional:
+                    info = self.convert_text(info, True)
+                f.write(info + '\n\n')
 
 def main():
     root = ctk.CTk()
