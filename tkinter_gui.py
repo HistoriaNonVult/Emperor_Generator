@@ -2066,7 +2066,7 @@ class EmperorApp:
             plt.xticks(rotation=45, ha='right')
             plt.tight_layout()
             return fig
- 
+
         # 图表 3：名字用字统计TOP50
         def plot_name_stats():
             top_50_chars = sorted(stats['name_stats'].items(), key=lambda x: x[1], reverse=True)[:50]
