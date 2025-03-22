@@ -178,7 +178,7 @@ class EmperorApp:
             search_frame,
             text="搜索皇帝：",
             #font=self.button_font,  # 使用放大的button_font (16)
-            font=('华文行楷', 18), 
+            font=('华文行楷', 20), 
             text_color=THEME_COLORS['text']
         )
         self.search_label.pack(side='left', padx=(0, 12))
@@ -669,7 +669,7 @@ class EmperorApp:
             
             popup.destroy()
         
-        ctk.CTkLabel(popup, text="请选择朝代：", font=self.button_font, text_color='#2B1B17').pack(pady=25)
+        ctk.CTkLabel(popup, text="请选择朝代：", font=('华文行楷', 20), text_color='#2B1B17').pack(pady=25)
         dynasties = ["时间轴", "总览"] + self.generator.get_dynasties_list()
         combo = ctk.CTkOptionMenu(popup, values=dynasties, font=self.text_font, width=240, fg_color='#FFF8DC', text_color='#2B1B17', button_color='#F5E6CB', button_hover_color='#DAA520')
         combo.set("时间轴")
