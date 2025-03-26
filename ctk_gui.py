@@ -18,7 +18,7 @@ from data import emperor_text
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import tkinter.filedialog as filedialog
-import pandas as pd  # 需要安装：pip install pandas
+import pandas as pd  
 import csv
 
 can_access_google = None
