@@ -1388,7 +1388,7 @@ class EmperorApp:
             canvas = FigureCanvasTkAgg(fig, master=tab)
             canvas.draw()
             canvas.get_tk_widget().pack(expand=True, fill="both")
-
+            canvas.get_tk_widget().bind("<Button-3>", lambda event, f=fig: self._show_export_menu(event, f))
         def plot_dynasty_counts():
             dynasties = list(stats['dynasty_stats'].keys())
             emperor_counts = [data['count'] for data in stats['dynasty_stats'].values()]
@@ -1477,6 +1477,46 @@ class EmperorApp:
         add_plot_to_tabview(tabview, "年号", plot_era_name_stats)
         add_plot_to_tabview(tabview, "庙号", plot_temple_name_stats)
         add_plot_to_tabview(tabview, "谥号", plot_posthumous_name_stats)
+        
+    def _show_export_menu(self, event, figure):
+        """显示导出图表的右键菜单"""
+        menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(
+            label="导出图表为图片" if not self.is_traditional else "導出圖表為圖片",
+            command=lambda: self._export_figure(figure),
+            font=("微软雅黑", 12)
+        )
+        menu.tk_popup(event.x_root, event.y_root)
+        menu.grab_release()
+
+    def _export_figure(self, figure):
+        """导出图表为图片"""
+        file_types = [
+            ('PNG 文件', '*.png'),
+            ('JPEG 文件', '*.jpg'),
+            ('SVG 文件', '*.svg')
+        ]
+        
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=file_types,
+            title="保存图表" if not self.is_traditional else "保存圖表"
+        )
+        
+        if not file_path:
+            return
+
+        try:
+            figure.savefig(file_path, dpi=300, bbox_inches='tight')
+            messagebox.showinfo(
+                "成功" if not self.is_traditional else "成功",
+                "图表导出成功！" if not self.is_traditional else "圖表導出成功！"
+            )
+        except Exception as e:
+            messagebox.showerror(
+                "错误" if not self.is_traditional else "錯誤",
+                f"导出失败：{str(e)}" if not self.is_traditional else f"導出失敗：{str(e)}"
+            )
 
     def _calculate_reign_length(self, reign_period):
         try:
