@@ -40,6 +40,7 @@ wheels/
 .DS_Store
 Thumbs.db
 
+
 # Project specific
 *.spec
 search_history.txt
