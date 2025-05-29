@@ -1,5 +1,5 @@
 # 历史向工具
-## 📦 [下载](https://github.com/HistoriaNonVult/Emperor_Generator/releases/latest)
+# 📦 [下载](https://github.com/HistoriaNonVult/Emperor_Generator/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-GPL--3.0-green)](https://github.com/HistoriaNonVult/Emperor_Generator/blob/master/LICENSE)
 [![Stars](https://img.shields.io/github/stars/HistoriaNonVult/Emperor_Generator?style=social)](https://github.com/HistoriaNonVult/Emperor_Generator/stargazers)
