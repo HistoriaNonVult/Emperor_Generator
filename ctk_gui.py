@@ -6,14 +6,14 @@ from tkinter import messagebox
 import customtkinter as ctk
 from customtkinter import CTk, CTkFrame, CTkLabel, CTkButton, CTkEntry, CTkToplevel, CTkTabview, CTkOptionMenu, CTkRadioButton, CTkCheckBox, CTkScrollbar
 import os
-import opencc # opencc 本身导入仍然需要，但初始化已延迟
+# import opencc # <-- 🚀 优化 4: 移除全局导入
 import sys
 import webbrowser
 import fnmatch
 import threading
 import json  # 用于加载预处理数据
-from openai import OpenAI
-from ai_chat_window import AIChatWindow
+# from openai import OpenAI # <-- 🚀 优化 4: 移除未使用的全局导入
+# from ai_chat_window import AIChatWindow # <-- 🚀 优化 4: 移除全局导入
 from emperor_generator import EmperorGenerator
 # from data import emperor_text  # 保留注释
 import tkinter.filedialog as filedialog
@@ -569,6 +569,11 @@ class EmperorApp:
 
         try:
             print("正在初始化 OpenCC...")
+
+            # 🚀 优化 4: 在此处延迟导入 opencc
+            import opencc
+            # 🚀 结束优化 4
+
             # 执行耗时的加载
             self.converter_t2s = opencc.OpenCC('t2s')
             self.converter_s_t = opencc.OpenCC('s2t')
@@ -975,6 +980,10 @@ class EmperorApp:
                 self.chat_window = None
         
         try:
+            # 🚀 优化 4: 在此处延迟导入 AIChatWindow
+            from ai_chat_window import AIChatWindow
+            # 🚀 结束优化 4
+
             api_key = 'sk-4aeed6dd7d344b05b79d6ade0bb1a95b' 
             self.chat_window = AIChatWindow(self.root, api_key)
             
