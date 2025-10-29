@@ -20,6 +20,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import tkinter.filedialog as filedialog
 import pandas as pd  
 import csv
+import math # ################## 关键修改：新增 math 导入 ##################
 
 can_access_google = None
 import matplotlib
@@ -61,7 +62,12 @@ class EmperorApp:
         # 绑定关闭事件
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
-        self.root.attributes('-alpha', 0.0)
+        # ##################################################################
+        # ###################### 关键修改：入场动画 - 步骤 1 #####################
+        # ##################################################################
+        self.root.attributes('-alpha', 0.0) # 启动时将窗口设置为完全透明
+        # ##################################################################
+        
         self.chat_window = None
         
         self.has_icon = False
@@ -88,10 +94,21 @@ class EmperorApp:
         
         self.generator = EmperorGenerator()
         
+        # ##################################################################
+        # ############# 关键修改：将逻辑从旧 fade_in 函数移到此处 ############
+        # ##################################################################
+        # 这些是应用初始化逻辑，必须在创建控件之前执行，
+        # 并且只应执行一次，而不是在动画的每一步都执行。
+        self.generator.parse_emperor_data(emperor_text)
+        self.is_traditional = False
+        self.converter_t2s = opencc.OpenCC('t2s')
+        self.converter_s2t = opencc.OpenCC('s2t')
+        # ##################################################################
+        
         self.setup_fonts()
         self.create_widgets()
         
-        self.fade_in()
+        # self.fade_in() # <--- 关键修改：移除旧的直接调用
         self.check_vpn_status()
         
         self.root.bind('<Left>', lambda e: self._move_window('left'))
@@ -105,6 +122,12 @@ class EmperorApp:
         # 在创建display_text后添加右键菜单绑定
         self.display_text.bind("<Button-3>", self.show_context_menu)  # Windows右键
         self.display_text.bind("<Button-2>", self.show_context_menu)  # Mac右键
+        
+        # ##################################################################
+        # ###################### 关键修改：入场动画 - 步骤 3 #####################
+        # ##################################################################
+        # 在所有控件加载完毕后，开始执行淡入动画 (参照 1.py)
+        self.root.after(10, self._start_fade_in)
 
     def check_vpn_status(self):
         global can_access_google
@@ -119,17 +142,64 @@ class EmperorApp:
         except:
             can_access_google = False
 
-    def fade_in(self):
-        alpha = self.root.attributes('-alpha')
-        if alpha < 1.0:
-            alpha += 0.2
-            self.root.attributes('-alpha', alpha)
-            self.root.after(50, self.fade_in)
+    # ##################################################################
+    # #################### 关键修改：移除旧的 fade_in ####################
+    # ##################################################################
+    #
+    # def fade_in(self):
+    #     alpha = self.root.attributes('-alpha')
+    #     if alpha < 1.0:
+    #         alpha += 0.2
+    #         self.root.attributes('-alpha', alpha)
+    #         self.root.after(50, self.fade_in)
+    #     # (此处的初始化逻辑已被移至 __init__)
+    #
+    # ##################################################################
+    
+    # ##################################################################
+    # ############### 关键修改：新增缓动动画函数 (参照 1.py) ##############
+    # ##################################################################
+    def _start_fade_in(self):
+        """(辅助函数) 初始化并启动淡入动画 (参照 1.py)"""
+        self.animation_total_duration = 300  # 总毫秒数 (0.3秒)
+        self.animation_step_delay = 15       # 每一步的毫秒数 (约66 FPS)
+        
+        try:
+            total_steps = self.animation_total_duration / self.animation_step_delay
+        except ZeroDivisionError:
+            total_steps = 0 
 
-        self.generator.parse_emperor_data(emperor_text)
-        self.is_traditional = False
-        self.converter_t2s = opencc.OpenCC('t2s')
-        self.converter_s2t = opencc.OpenCC('s2t')
+        if total_steps == 0:
+            self.root.attributes('-alpha', 1.0)
+            return
+            
+        self.progress_increment = 1.0 / total_steps
+        self.current_progress = 0.0
+        
+        self._fade_in_step()
+
+    def _fade_in_step(self):
+        """(辅助函数) 执行淡入动画的单一步骤 (参照 1.py)"""
+        self.current_progress += self.progress_increment
+        
+        if self.current_progress >= 1.0:
+            self.root.attributes('-alpha', 1.0) # 确保最终为 1.0
+        else:
+            # 使用 math.sin 实现缓出（Ease-Out）
+            eased_alpha = math.sin(self.current_progress * (math.pi / 2))
+            
+            try:
+                # 注意：这里操作的是 self.root
+                self.root.attributes('-alpha', eased_alpha)
+            except tk.TclError:
+                # 窗口可能在动画过程中被关闭
+                return
+            
+            # 注意：这里操作的是 self.root
+            self.root.after(self.animation_step_delay, self._fade_in_step)
+    # ##################################################################
+    # ######################## 结束新增动画代码 ##########################
+    # ##################################################################
 
     def setup_fonts(self):
         self.is_traditional = False
@@ -765,7 +835,7 @@ class EmperorApp:
                 self.chat_window = None
         
         try:
-            api_key = '你丫别想偷了' 
+            api_key = 'sk-4aeed6dd7d344b05b79d6ade0bb1a95b' 
             self.chat_window = AIChatWindow(self.root, api_key)
             
             # 为聊天窗口设置图标 - 使用多次延迟设置
