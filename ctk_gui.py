@@ -32,6 +32,27 @@ import math
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
+# 🚀 用户要求: 在窗口打开前预先识别VPN状态
+def check_google_access_on_startup():
+    """
+    在启动时预先检查VPN（代理）状态。
+    这是用户要求的，会阻塞启动。
+    """
+    print("正在执行启动时VPN（代理）状态检查...")
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                            r'Software\Microsoft\Windows\CurrentVersion\Internet Settings', 
+                            0, winreg.KEY_READ)
+        proxy_enable, _ = winreg.QueryValueEx(key, 'ProxyEnable')
+        winreg.CloseKey(key)
+        status = bool(proxy_enable)
+        print(f"VPN (代理) 状态: {status}")
+        return status
+    except Exception as e:
+        print(f"检查代理失败 (winreg): {e}")
+        return False
+
 class EmperorApp:
     def _move_window(self, direction):
         """移动窗口"""
@@ -58,7 +79,7 @@ class EmperorApp:
         for direction, key in [('left', '<Left>'), ('right', '<Right>'), ('up', '<Up>'), ('down', '<Down>')]:
             self.root.bind(key, lambda e, d=direction: self._move_window(d))
 
-    def __init__(self, root):
+    def __init__(self, root, can_access_google): # 🚀 用户要求: 接收预检状态
         self.root = root
         self.root.title("受命於天，既壽永昌")
         
@@ -66,10 +87,10 @@ class EmperorApp:
         self.root.attributes('-alpha', 0.0)
         self.chat_window = None
         
-        # --- 🚀 优化 3: VPN状态改为实例变量 ---
-        self.can_access_google = None
-        self.vpn_status_checked = False
-        # --- 结束优化 3 ---
+        # --- 🚀 用户要求: 接收预先检查的VPN状态 ---
+        self.can_access_google = can_access_google # 👈 b. 
+        self.vpn_status_checked = True # 👈 c. 标记为已检查
+        # --- 结束 ---
         
         self.has_icon = False
         try:
@@ -170,7 +191,7 @@ class EmperorApp:
             self.converter_t2s = None
             self.converter_s_t = None
             
-            # --- 🚀 优化 3: 移除启动时的VPN检查 ---
+            # --- 🚀 优化 3: 移除启动时的VPN检查 (已在外部预检) ---
             # self.check_vpn_status() 
             # --- 结束优化 3 ---
             
@@ -203,23 +224,9 @@ class EmperorApp:
             
         print("数据加载完成，UI已激活。")
 
-    def check_vpn_status(self):
-        """检查VPN（代理）状态，这是一个I/O操作"""
-        # --- 🚀 优化 3: 移除 global，使用 self ---
-        try:
-            import winreg
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
-                                r'Software\Microsoft\Windows\CurrentVersion\Internet Settings', 
-                                0, winreg.KEY_READ)
-            proxy_enable, _ = winreg.QueryValueEx(key, 'ProxyEnable')
-            winreg.CloseKey(key)
-            self.can_access_google = bool(proxy_enable) # 设置实例变量
-        except Exception:
-            self.can_access_google = False # 设置实例变量
-        
-        self.vpn_status_checked = True # 标记为已检查
-        # --- 结束优化 3 ---
-
+    # 🚀 用户要求: 移除此类内部的 check_vpn_status 方法
+    # (原方法已移至全局)
+    
     def _start_fade_in(self):
         """(辅助函数) 初始化并启动淡入动画 (参照 1.py)"""
         self.animation_total_duration = 300
@@ -686,13 +693,12 @@ class EmperorApp:
                         from urllib.parse import quote
                         encoded_term = quote(search_term)
                         
-                        # --- 🚀 优化 3: 延迟检查VPN状态 ---
-                        if not self.vpn_status_checked:
-                            print("正在执行一次性VPN状态检查 (reapply_tags)...")
-                            self.check_vpn_status()
-                        # --- 结束优化 3 ---
+                        # --- 🚀 用户要求: 移除延迟检查VPN状态 ---
+                        # (检查已在 __init__ 中完成)
+                        # --- 结束 ---
                         
-                        url = f"https://cn.bing.com/search?q={encoded_term}"
+                        # 🚀 修正: 在繁简切换时也使用正确的VPN链接
+                        url = f"https://cn.bing.com/search?q={encoded_term}&setlang=zh-CN&setmkt=zh-CN" if not self.can_access_google else f"https://www.google.com/search?q={encoded_term}&hl=zh-CN&lr=lang_zh-CN"
                         
                         # 添加标签和绑定事件
                         self.display_text.tag_add(link_tag, start_index, end_index)
@@ -711,12 +717,9 @@ class EmperorApp:
     def insert_emperor_with_link(self, emperor):
         """插入带有搜索链接的皇帝信息"""
         
-        # --- 🚀 优化 3: 延迟检查VPN状态 (仅在第一次需要创建链接时) ---
-        if not self.vpn_status_checked:
-            print("正在执行一次性VPN状态检查...")
-            self.check_vpn_status()
-            print(f"VPN (代理) 状态: {self.can_access_google}")
-        # --- 结束优化 3 ---
+        # --- 🚀 用户要求: 移除延迟检查VPN状态 ---
+        # (检查已在 __init__ 中完成)
+        # --- 结束 ---
         
         info = self.generator.format_emperor_info(emperor)
         if self.is_traditional:
@@ -1952,8 +1955,11 @@ class EmperorApp:
                 f.write(info + '\n\n')
 
 def main():
+    # 🚀 用户要求: 在窗口打开前预先识别VPN状态
+    pre_checked_google_access = check_google_access_on_startup()
+    
     root = ctk.CTk()
-    app = EmperorApp(root)
+    app = EmperorApp(root, can_access_google=pre_checked_google_access) # 传递结果
     root.mainloop()
 
 if __name__ == "__main__":
