@@ -6,28 +6,31 @@ from tkinter import messagebox
 import customtkinter as ctk
 from customtkinter import CTk, CTkFrame, CTkLabel, CTkButton, CTkEntry, CTkToplevel, CTkTabview, CTkOptionMenu, CTkRadioButton, CTkCheckBox, CTkScrollbar
 import os
-import opencc
+import opencc # opencc 本身导入仍然需要，但初始化已延迟
 import sys
 import webbrowser
 import fnmatch
 import threading
+import json  # 用于加载预处理数据
 from openai import OpenAI
 from ai_chat_window import AIChatWindow
 from emperor_generator import EmperorGenerator
-from data import emperor_text
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+# from data import emperor_text  # 保留注释
 import tkinter.filedialog as filedialog
-import pandas as pd  
+# import pandas as pd  # ################## 🚀 优化 1: 移除全局导入 ##################
 import csv
-import math # ################## 关键修改：新增 math 导入 ##################
+import math
 
-can_access_google = None
-import matplotlib
+# --- 🚀 优化 1 & 3: 移除全局导入 ---
+# import matplotlib.pyplot as plt
+# from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+# import pandas as pd  
+# import matplotlib
+# can_access_google = None # 改为实例变量
+# matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei'] # 延迟设置
 
-ctk.set_appearance_mode("light")  # Set to light mode for a modern look
-ctk.set_default_color_theme("blue")  # Use blue as a base theme
-matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 使用黑体
+ctk.set_appearance_mode("light")
+ctk.set_default_color_theme("blue")
 
 class EmperorApp:
     def _move_window(self, direction):
@@ -59,16 +62,14 @@ class EmperorApp:
         self.root = root
         self.root.title("受命於天，既壽永昌")
         
-        # 绑定关闭事件
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-        
-        # ##################################################################
-        # ###################### 关键修改：入场动画 - 步骤 1 #####################
-        # ##################################################################
-        self.root.attributes('-alpha', 0.0) # 启动时将窗口设置为完全透明
-        # ##################################################################
-        
+        self.root.attributes('-alpha', 0.0)
         self.chat_window = None
+        
+        # --- 🚀 优化 3: VPN状态改为实例变量 ---
+        self.can_access_google = None
+        self.vpn_status_checked = False
+        # --- 结束优化 3 ---
         
         self.has_icon = False
         try:
@@ -84,8 +85,8 @@ class EmperorApp:
             print(f"无法加载图标: {e}")
             messagebox.showerror("图标加载错误", "无法加载图标，请检查文件路径和文件格式。")
         
-        window_width = 900  # 稍微增加窗口宽度以适应更大的字体
-        window_height = 900  # 稍微增加窗口高度
+        window_width = 900
+        window_height = 900
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
         x = (screen_width - window_width) // 2
@@ -93,28 +94,15 @@ class EmperorApp:
         root.geometry(f"{window_width}x{window_height}+{x}+{y}")
         
         self.generator = EmperorGenerator()
-        
-        # ##################################################################
-        # ############# 关键修改：将逻辑从旧 fade_in 函数移到此处 ############
-        # ##################################################################
-        # 这些是应用初始化逻辑，必须在创建控件之前执行，
-        # 并且只应执行一次，而不是在动画的每一步都执行。
-        self.generator.parse_emperor_data(emperor_text)
-        self.is_traditional = False
-        self.converter_t2s = opencc.OpenCC('t2s')
-        self.converter_s2t = opencc.OpenCC('s2t')
-        # ##################################################################
-        
         self.setup_fonts()
+        
+        # --- 🚀 优化 2: 调整UI加载顺序 ---
+        # 1. 立即显示加载遮罩 (UI响应更快)
+        self._show_loading_overlay() 
+
+        # 2. 在遮罩下创建UI
         self.create_widgets()
-        
-        # self.fade_in() # <--- 关键修改：移除旧的直接调用
-        self.check_vpn_status()
-        
-        self.root.bind('<Left>', lambda e: self._move_window('left'))
-        self.root.bind('<Right>', lambda e: self._move_window('right'))
-        self.root.bind('<Up>', lambda e: self._move_window('up'))
-        self.root.bind('<Down>', lambda e: self._move_window('down'))
+        # --- 结束优化 2 ---
         
         # 添加一个属性用于跟踪当前显示的皇帝
         self.displayed_emperors = []
@@ -123,14 +111,101 @@ class EmperorApp:
         self.display_text.bind("<Button-3>", self.show_context_menu)  # Windows右键
         self.display_text.bind("<Button-2>", self.show_context_menu)  # Mac右键
         
-        # ##################################################################
-        # ###################### 关键修改：入场动画 - 步骤 3 #####################
-        # ##################################################################
-        # 在所有控件加载完毕后，开始执行淡入动画 (参照 1.py)
+        # (原 _show_loading_overlay() 位置被移除)
+        
+        # 绑定数据加载完成事件
+        self.root.bind("<<DataLoaded>>", self._on_data_loaded)
+        
+        # 启动后台加载线程
+        load_thread = threading.Thread(target=self._load_data_async, daemon=True)
+        load_thread.start()
+        
+        # 最后再开始动画
         self.root.after(10, self._start_fade_in)
 
+    def _show_loading_overlay(self):
+        """在主窗口上显示一个加载遮罩层"""
+        self.loading_overlay = ctk.CTkFrame(
+            self.root,
+            fg_color=("white", "gray20"),
+            corner_radius=0
+        )
+        self.loading_overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.loading_overlay.lift()
+
+        loading_label = ctk.CTkLabel(
+            self.loading_overlay,
+            text="正在加载皇帝数据，请稍候...",
+            font=('华文行楷', 22),
+            text_color="#8B0000"
+        )
+        loading_label.place(relx=0.5, rely=0.5, anchor="center")
+        
+    def _load_data_async(self):
+        """在后台线程中执行所有耗时的加载任务"""
+        try:
+            # --- 方案 A: (快速) 从预处理的 JSON 加载 ---
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.abspath(".")
+            
+            json_path = os.path.join(base_path, "assets", "emperors_data.json")
+
+            with open(json_path, 'r', encoding='utf-8') as f:
+                preprocessed_data = json.load(f)
+
+            self.generator.all_emperors = preprocessed_data["all_emperors"]
+            self.generator.dynasties = preprocessed_data["dynasties"]
+            
+            
+            # --- 方案 B: (慢速) 实时解析原始文本 (保留注释) ---
+            # self.generator.parse_emperor_data(emperor_text) 
+            
+            
+            # --- 后续加载步骤 ---
+            # 初始化繁简转换 (这个还是慢，但我们没办法)
+            self.is_traditional = False
+            # (opencc 优化: 启动时设为 None, 延迟加载)
+            self.converter_t2s = None
+            self.converter_s_t = None
+            
+            # --- 🚀 优化 3: 移除启动时的VPN检查 ---
+            # self.check_vpn_status() 
+            # --- 结束优化 3 ---
+            
+            # 绑定按键
+            self.root.bind('<Left>', lambda e: self._move_window('left'))
+            self.root.bind('<Right>', lambda e: self._move_window('right'))
+            self.root.bind('<Up>', lambda e: self._move_window('up'))
+            self.root.bind('<Down>', lambda e: self._move_window('down'))
+
+        except Exception as e:
+            print(f"后台加载失败: {e}")
+            self.load_error = e
+        
+        # 发送事件通知主线程 (UI线程)
+        self.root.event_generate("<<DataLoaded>>")
+
+    def _on_data_loaded(self, event=None):
+        """当 <<DataLoaded>> 事件被触发时 (在UI线程中) 执行"""
+        
+        # 检查加载过程中是否有错误
+        if hasattr(self, 'load_error'):
+            messagebox.showerror("加载错误", f"数据加载失败: {self.load_error}")
+            self.root.destroy()
+            return
+
+        # 销毁遮罩层
+        if hasattr(self, 'loading_overlay'):
+            self.loading_overlay.destroy()
+            del self.loading_overlay
+            
+        print("数据加载完成，UI已激活。")
+
     def check_vpn_status(self):
-        global can_access_google
+        """检查VPN（代理）状态，这是一个I/O操作"""
+        # --- 🚀 优化 3: 移除 global，使用 self ---
         try:
             import winreg
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
@@ -138,31 +213,17 @@ class EmperorApp:
                                 0, winreg.KEY_READ)
             proxy_enable, _ = winreg.QueryValueEx(key, 'ProxyEnable')
             winreg.CloseKey(key)
-            can_access_google = bool(proxy_enable)
-        except:
-            can_access_google = False
+            self.can_access_google = bool(proxy_enable) # 设置实例变量
+        except Exception:
+            self.can_access_google = False # 设置实例变量
+        
+        self.vpn_status_checked = True # 标记为已检查
+        # --- 结束优化 3 ---
 
-    # ##################################################################
-    # #################### 关键修改：移除旧的 fade_in ####################
-    # ##################################################################
-    #
-    # def fade_in(self):
-    #     alpha = self.root.attributes('-alpha')
-    #     if alpha < 1.0:
-    #         alpha += 0.2
-    #         self.root.attributes('-alpha', alpha)
-    #         self.root.after(50, self.fade_in)
-    #     # (此处的初始化逻辑已被移至 __init__)
-    #
-    # ##################################################################
-    
-    # ##################################################################
-    # ############### 关键修改：新增缓动动画函数 (参照 1.py) ##############
-    # ##################################################################
     def _start_fade_in(self):
         """(辅助函数) 初始化并启动淡入动画 (参照 1.py)"""
-        self.animation_total_duration = 300  # 总毫秒数 (0.3秒)
-        self.animation_step_delay = 15       # 每一步的毫秒数 (约66 FPS)
+        self.animation_total_duration = 300
+        self.animation_step_delay = 15
         
         try:
             total_steps = self.animation_total_duration / self.animation_step_delay
@@ -183,23 +244,16 @@ class EmperorApp:
         self.current_progress += self.progress_increment
         
         if self.current_progress >= 1.0:
-            self.root.attributes('-alpha', 1.0) # 确保最终为 1.0
+            self.root.attributes('-alpha', 1.0)
         else:
-            # 使用 math.sin 实现缓出（Ease-Out）
             eased_alpha = math.sin(self.current_progress * (math.pi / 2))
             
             try:
-                # 注意：这里操作的是 self.root
                 self.root.attributes('-alpha', eased_alpha)
             except tk.TclError:
-                # 窗口可能在动画过程中被关闭
                 return
             
-            # 注意：这里操作的是 self.root
             self.root.after(self.animation_step_delay, self._fade_in_step)
-    # ##################################################################
-    # ######################## 结束新增动画代码 ##########################
-    # ##################################################################
 
     def setup_fonts(self):
         self.is_traditional = False
@@ -427,11 +481,6 @@ class EmperorApp:
         )
         
         # 添加 customtkinter 滚动条
-        # scrollbar = ctk.CTkScrollbar(text_frame, orientation="vertical", command=self.display_text.yview)
-        # scrollbar.pack(side="right", fill="y")
-        # self.display_text.configure(yscrollcommand=scrollbar.set)
-        
-        # 改进后的代码
         scrollbar = ctk.CTkScrollbar(
             text_frame,
             orientation="vertical",
@@ -481,14 +530,77 @@ class EmperorApp:
         self.root.bind('<Escape>', lambda e: self.root.focus())
         self.search_entry.bind('<Return>', lambda e: self.search_emperor())
 
+    def _check_if_ready(self):
+        """检查数据是否加载完成，未完成则提示"""
+        if hasattr(self, 'loading_overlay'):
+            messagebox.showinfo("请稍候", "数据仍在加载中，请稍候片刻...")
+            return False
+        # (opencc 优化: 移除对 converter_s2t 的检查)
+        return True
+
+    def _init_opencc(self):
+        """
+        (opencc 优化) 延迟初始化 OpenCC 转换器，带模态弹窗。
+        只在第一次需要时执行。
+        """
+        # 检查是否已经初始化
+        if self.converter_s_t and self.converter_t2s:
+            return True
+        
+        # 弹出“正在加载”提示
+        loading_popup = ctk.CTkToplevel(self.root)
+        loading_popup.title("请稍候")
+        
+        # --- 计算弹窗在主窗口中心的位置 ---
+        w = 300
+        h = 100
+        root_x = self.root.winfo_x()
+        root_y = self.root.winfo_y()
+        root_w = self.root.winfo_width()
+        root_h = self.root.winfo_height()
+        x = root_x + (root_w // 2) - (w // 2)
+        y = root_y + (root_h // 2) - (h // 2)
+        loading_popup.geometry(f"{w}x{h}+{x}+{y}")
+        # --- 结束计算 ---
+        
+        loading_popup.grab_set() # 设为模态，阻止操作主窗口
+        ctk.CTkLabel(loading_popup, text="正在加载繁简转换模块...", font=self.text_font).pack(pady=20, expand=True)
+        self.root.update_idletasks() # 强制更新UI以显示弹窗
+
+        try:
+            print("正在初始化 OpenCC...")
+            # 执行耗时的加载
+            self.converter_t2s = opencc.OpenCC('t2s')
+            self.converter_s_t = opencc.OpenCC('s2t')
+            print("OpenCC 初始化完成。")
+            
+            loading_popup.destroy() # 关闭弹窗
+            return True
+        except Exception as e:
+            loading_popup.destroy() # 出错也要关闭弹窗
+            messagebox.showerror("加载错误", f"无法加载繁简转换模块 (OpenCC): {e}")
+            return False
+
     def convert_text(self, text, to_traditional=True):
-        """转换文字"""
+        """转换文字（带延迟加载检查）"""
+        
+        # (opencc 优化: 检查是否需要初始化)
+        if not self.converter_s_t or not self.converter_t2s:
+            if not self._init_opencc():
+                # 如果初始化失败，直接返回原文
+                return text
+        # --- 结束检查 ---
+
+        # 正常执行转换
         if to_traditional:
-            return self.converter_s2t.convert(text)
+            return self.converter_s_t.convert(text)
         return self.converter_t2s.convert(text)
     
     def toggle_traditional(self):
         """切换繁简显示"""
+        if not self._check_if_ready():
+            return
+            
         self.is_traditional = not self.is_traditional
         
         self.switch_button.configure(text="繁體" if self.is_traditional else "简体")
@@ -568,6 +680,13 @@ class EmperorApp:
                         search_term = " ".join(filter(None, search_parts))
                         from urllib.parse import quote
                         encoded_term = quote(search_term)
+                        
+                        # --- 🚀 优化 3: 延迟检查VPN状态 ---
+                        if not self.vpn_status_checked:
+                            print("正在执行一次性VPN状态检查 (reapply_tags)...")
+                            self.check_vpn_status()
+                        # --- 结束优化 3 ---
+                        
                         url = f"https://cn.bing.com/search?q={encoded_term}"
                         
                         # 添加标签和绑定事件
@@ -586,6 +705,14 @@ class EmperorApp:
 
     def insert_emperor_with_link(self, emperor):
         """插入带有搜索链接的皇帝信息"""
+        
+        # --- 🚀 优化 3: 延迟检查VPN状态 (仅在第一次需要创建链接时) ---
+        if not self.vpn_status_checked:
+            print("正在执行一次性VPN状态检查...")
+            self.check_vpn_status()
+            print(f"VPN (代理) 状态: {self.can_access_google}")
+        # --- 结束优化 3 ---
+        
         info = self.generator.format_emperor_info(emperor)
         if self.is_traditional:
             info = self.convert_text(info, True)
@@ -605,7 +732,9 @@ class EmperorApp:
         search_term = ' '.join(search_parts)
         from urllib.parse import quote
         encoded_term = quote(search_term)
-        url = f"https://cn.bing.com/search?q={encoded_term}&setlang=zh-CN&setmkt=zh-CN" if not can_access_google else f"https://www.google.com/search?q={encoded_term}&hl=zh-CN&lr=lang_zh-CN"
+        
+        # --- 🚀 优化 3: 使用 self.can_access_google ---
+        url = f"https://cn.bing.com/search?q={encoded_term}&setlang=zh-CN&setmkt=zh-CN" if not self.can_access_google else f"https://www.google.com/search?q={encoded_term}&hl=zh-CN&lr=lang_zh-CN"
         
         link_text = "查看详细资料" if not self.is_traditional else self.convert_text("查看详细资料", True)
         start_index = self.display_text.index("end-1c linestart")
@@ -628,6 +757,8 @@ class EmperorApp:
 
     def generate_random_emperor(self):
         """生成一位随机皇帝并显示"""
+        if not self._check_if_ready():
+            return
         if not self.generator.all_emperors:
             messagebox.showerror("错误", "皇帝数据未加载。")
             return
@@ -642,6 +773,9 @@ class EmperorApp:
 
     def generate_multiple_emperors(self):
         """生成多位随机皇帝并显示"""
+        if not self._check_if_ready():
+            return
+            
         def submit():
             count_str = entry.get()
             try:
@@ -674,6 +808,9 @@ class EmperorApp:
 
     def query_emperors_by_dynasty(self):
         """按朝代查询皇帝"""
+        if not self._check_if_ready():
+            return
+            
         popup = self.create_popup("按朝代查询皇帝")
         
         def submit():
@@ -825,6 +962,9 @@ class EmperorApp:
         return popup
 
     def show_chat_window(self):
+        if not self._check_if_ready():
+            return
+            
         if hasattr(self, 'chat_window') and self.chat_window is not None:
             try:
                 if self.chat_window.window.winfo_exists():
@@ -860,6 +1000,9 @@ class EmperorApp:
             return None
 
     def search_emperor(self):
+        if not self._check_if_ready():
+            return
+            
         keyword = self.search_entry.get().strip()
         if not keyword:
             messagebox.showwarning("提示", self.convert_text("请输入搜索关键词", self.is_traditional))
@@ -897,6 +1040,21 @@ class EmperorApp:
             self.display_text.insert("end", msg)
 
     def show_dynasty_timeline(self):
+        if not self._check_if_ready():
+            return
+            
+        # --- 🚀 优化 1: 延迟导入 matplotlib ---
+        try:
+            print("正在加载 matplotlib (用于时间轴)...")
+            import matplotlib.pyplot as plt
+            import matplotlib
+            if 'font.sans-serif' not in matplotlib.rcParams or matplotlib.rcParams['font.sans-serif'] != ['Microsoft YaHei']:
+                 matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei']
+        except ImportError:
+            messagebox.showerror("导入错误", "无法加载 matplotlib 库。\n请确保已安装: pip install matplotlib")
+            return
+        # --- 结束优化 1 ---
+            
         DYNASTY_YEARS = [
             ("秦朝", "前221年-前206年"),
             ("西汉", "前202年-公元8年"),
@@ -951,6 +1109,7 @@ class EmperorApp:
         if self.is_traditional:
             note = self.convert_text(note, True)
         self.display_text.insert("end", note)
+        
         plt.close('all')
         plt.figure(figsize=(16, 8))
         dynasties = ["秦朝", "西汉", "新朝", "东汉", "曹魏", "蜀汉", "东吴", "西晋", "东晋", "刘宋", "南齐", "南梁", "陈", "北魏", "东魏", "西魏", "北齐", "北周", "隋朝", "唐朝", "后梁", "后唐", "后晋", "后汉", "后周", "北宋", "辽", "金", "南宋", "元朝", "明朝", "大顺", "南明", "清朝"]
@@ -965,6 +1124,9 @@ class EmperorApp:
         plt.show()
 
     def create_advanced_search_dialog(self):
+        if not self._check_if_ready():
+            return
+            
         dialog = self.create_popup("高级搜索" if not self.is_traditional else "進階搜索", width=380, height=520)  # 增加高度以适应更大字体
         
         search_frame = ctk.CTkFrame(dialog, fg_color='#FFFFFF')
@@ -1160,6 +1322,9 @@ class EmperorApp:
 
     def resort_results(self):
         """根据选择的方式重新排序结果"""
+        if not self._check_if_ready():
+            return
+            
         # 如果没有显示的皇帝，直接返回
         if not self.displayed_emperors:
             return
@@ -1267,6 +1432,14 @@ class EmperorApp:
             self.insert_emperor_with_link(emperor)
 
     def analyze_emperors(self):
+        """
+        分析皇帝数据。
+        注意：此函数不直接使用 matplotlib，但它调用的
+        _display_analysis_results 和 _show_analysis_plots 会延迟加载。
+        """
+        if not self._check_if_ready():
+            return
+            
         stats = {
             'dynasty_stats': {},
             'reign_stats': {
@@ -1367,7 +1540,22 @@ class EmperorApp:
         self._show_analysis_plots(stats)
 
     def _display_analysis_results(self, stats):
-        plt.close('all')
+        # --- 🚀 优化 1: 延迟导入 matplotlib (仅用于 close) ---
+        try:
+            print("正在加载 matplotlib (用于关闭旧图表)...")
+            import matplotlib.pyplot as plt
+            import matplotlib
+            if 'font.sans-serif' not in matplotlib.rcParams or matplotlib.rcParams['font.sans-serif'] != ['Microsoft YaHei']:
+                 matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei']
+        except ImportError:
+            # 如果只是 closeall 失败，可以继续显示文本
+            print("Matplotlib 加载失败，但统计文本仍会显示。")
+            plt = None 
+        # --- 结束优化 1 ---
+        
+        if plt:
+            plt.close('all')
+            
         self.display_text.delete("1.0", "end")
         
         title = "皇帝数据统计分析\n" + "_" * 32 + "\n\n"
@@ -1437,6 +1625,19 @@ class EmperorApp:
             self.display_text.insert("end", line)
 
     def _show_analysis_plots(self, stats):
+        # --- 🚀 优化 1: 延迟导入 matplotlib (主要) ---
+        try:
+            print("正在加载 matplotlib (用于统计图表)...")
+            import matplotlib.pyplot as plt
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            import matplotlib
+            if 'font.sans-serif' not in matplotlib.rcParams or matplotlib.rcParams['font.sans-serif'] != ['Microsoft YaHei']:
+                 matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei']
+        except ImportError:
+            messagebox.showerror("导入错误", "无法加载 matplotlib 库。\n请确保已安装: pip install matplotlib")
+            return
+        # --- 结束优化 1 ---
+        
         plot_window = ctk.CTkToplevel(self.root)
         plot_window.title("统计图表")
         plot_window.geometry("1600x800")
@@ -1459,6 +1660,7 @@ class EmperorApp:
             canvas.draw()
             canvas.get_tk_widget().pack(expand=True, fill="both")
             canvas.get_tk_widget().bind("<Button-3>", lambda event, f=fig: self._show_export_menu(event, f))
+            
         def plot_dynasty_counts():
             dynasties = list(stats['dynasty_stats'].keys())
             emperor_counts = [data['count'] for data in stats['dynasty_stats'].values()]
@@ -1632,6 +1834,9 @@ class EmperorApp:
 
     def export_data(self):
         """导出数据功能"""
+        if not self._check_if_ready():
+            return
+            
         if not self.displayed_emperors:
             messagebox.showwarning(
                 "提示" if not self.is_traditional else "提示",
@@ -1675,7 +1880,14 @@ class EmperorApp:
 
     def export_to_excel(self, file_path):
         """导出到Excel文件"""
-        import pandas as pd
+        # --- 🚀 优化 1: 延迟导入 pandas ---
+        try:
+            print("正在加载 pandas (用于导出 Excel)...")
+            import pandas as pd
+        except ImportError:
+            messagebox.showerror("导入错误", "无法加载 pandas 库。\n请确保已安装: pip install pandas")
+            return
+        # --- 结束优化 1 ---
         
         data = []
         for emperor in self.displayed_emperors:
@@ -1694,12 +1906,11 @@ class EmperorApp:
             df.columns = [self.convert_text(col, True) for col in df.columns]
             df = df.applymap(lambda x: self.convert_text(str(x), True) if pd.notnull(x) else x)
         
-        df.to_excel(file_path, index=False, encoding='utf-8-sig')
+        df.to_excel(file_path, index=False) # 移除了 encoding='utf-8-sig'，pandas 默认使用 openpyxl
 
     def export_to_csv(self, file_path):
         """导出到CSV文件"""
-        import csv
-        
+        # (csv 是内置库，无需延迟加载)
         headers = ['朝代', '称号', '名讳', '庙号', '谥号', '年号', '在位时间']
         if self.is_traditional:
             headers = [self.convert_text(h, True) for h in headers]
