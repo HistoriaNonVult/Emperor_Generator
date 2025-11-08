@@ -177,7 +177,25 @@ class EmperorApp:
                 preprocessed_data = json.load(f)
 
             self.generator.all_emperors = preprocessed_data["all_emperors"]
-            self.generator.dynasties = preprocessed_data["dynasties"]
+            # 确保正确设置朝代列表
+            dynasty_order = [
+                "秦朝", "西汉", "新朝", "东汉", 
+                "曹魏", "蜀汉", "东吴", 
+                "西晋", "东晋", "刘宋","齐","梁","陈",
+                "北魏", "东魏", "西魏", 
+                "北齐", "北周",
+                "隋朝", "唐朝", 
+                "后梁", "后唐", "后晋", "后汉", "后周", 
+                "北宋", "南宋", 
+                "辽", "金", 
+                "元朝", "明朝", "大顺", "南明", "清朝"
+            ]
+            
+            # 按历史顺序排序朝代列表
+            self.generator.dynasties = sorted(
+                list(set(emp['dynasty'] for emp in self.generator.all_emperors if emp['dynasty'])),
+                key=lambda x: dynasty_order.index(x) if x in dynasty_order else len(dynasty_order)
+            )
             
             
             # --- 方案 B: (慢速) 实时解析原始文本 (保留注释) ---
@@ -842,8 +860,9 @@ class EmperorApp:
                 self.display_text.insert("end", title, "section_title")
                 
                 displayed_emperors = set()
-                for dynasty in self.generator.get_dynasties_list():
-                    emperors = self.generator.get_emperors_by_dynasty(dynasty)
+                # 使用按历史顺序排序的朝代列表
+                for dynasty in self.generator.dynasties:
+                    emperors = [emp for emp in self.generator.all_emperors if emp['dynasty'] == dynasty]
                     if emperors:
                         dynasty_title = f"【{dynasty}】\n"
                         if self.is_traditional:
@@ -859,7 +878,8 @@ class EmperorApp:
                                 self.display_text.insert("end", emp_text)
                         self.display_text.insert("end", "\n")
             else:
-                emperors = self.generator.get_emperors_by_dynasty(selected_dynasty)
+                # 修复：去掉多余的dynasty
+                emperors = [emp for emp in self.generator.all_emperors if emp['dynasty'] == selected_dynasty]
                 if emperors:
                     title = f"【{selected_dynasty}】皇帝列表：\n\n"
                     if self.is_traditional:
@@ -867,7 +887,7 @@ class EmperorApp:
                     self.display_text.insert("end", title, "section_title")
                     
                     # 保存当前显示的皇帝
-                    self.displayed_emperors = emperors.copy()
+                    self.displayed_emperors = emperors
                     
                     displayed_set = set()
                     for emp in emperors:
@@ -885,8 +905,9 @@ class EmperorApp:
             popup.destroy()
         
         ctk.CTkLabel(popup, text="请选择朝代：", font=('华文行楷', 20), text_color='#2B1B17').pack(pady=25)
-        dynasties = ["时间轴", "总览"] + self.generator.get_dynasties_list()
-        combo = ctk.CTkOptionMenu(popup, values=dynasties, font=self.text_font, width=240, fg_color='#FFF8DC', text_color='#2B1B17', button_color='#F5E6CB', button_hover_color='#DAA520')
+        # 确保包含所有选项
+        all_options = ["时间轴", "总览"] + self.generator.dynasties
+        combo = ctk.CTkOptionMenu(popup, values=all_options, font=self.text_font, width=240, fg_color='#FFF8DC', text_color='#2B1B17', button_color='#F5E6CB', button_hover_color='#DAA520')
         combo.set("时间轴")
         combo.pack(pady=18)
         submit_button = ctk.CTkButton(popup, text="查询", command=submit, width=180, fg_color='#F5E6CB', text_color='#8B2323', hover_color='#DAA520')
@@ -1300,16 +1321,23 @@ class EmperorApp:
         
         def get_dynasty_order(dynasty):
             dynasty_order = [
-                "秦朝", "西汉", "新朝", "东汉", "曹魏", "蜀汉", "东吴", "西晋", "东晋",
-                "刘宋", "齐", "梁", "陈", "北魏", "东魏", "西魏", "北齐", "北周",
-                "隋朝", "唐朝", "后梁", "后唐", "后晋", "后汉", "后周", "北宋",
-                "辽", "金", "南宋", "元朝", "明朝", "大顺", "南明", "清朝"
+                "秦朝", "西汉", "新朝", "东汉", 
+                "曹魏", "蜀汉", "东吴", 
+                "西晋", "东晋",
+                "北魏", "东魏", "西魏", 
+                "北齐", "南齐",  # 调整齐的顺序
+                "南梁", "北周", "陈", 
+                "隋朝", "唐朝", 
+                "后梁", "后唐", "后晋", "后汉", "后周", 
+                "北宋", "南宋", 
+                "辽", "金", 
+                "元朝", "明朝", "大顺", "南明", "清朝"
             ]
             try:
                 return dynasty_order.index(dynasty)
             except ValueError:
                 return len(dynasty_order)
-        
+                
         if sort_by == 'year':
             results.sort(key=lambda x: get_year(x.get('reign_period', '')))
         elif sort_by == 'dynasty':
@@ -1373,10 +1401,17 @@ class EmperorApp:
         
         elif sort_type == 'dynasty':
             dynasty_order = [
-                "秦朝", "西汉", "新朝", "东汉", "曹魏", "蜀汉", "东吴", "西晋", "东晋",
-                "刘宋", "南齐", "南梁", "陈", "北魏", "东魏", "西魏", "北齐", "北周",
-                "隋朝", "唐朝", "后梁", "后唐", "后晋", "后汉", "后周", "北宋",
-                "辽", "金", "南宋", "元朝", "明朝", "大顺", "南明", "清朝"
+                "秦朝", "西汉", "新朝", "东汉", 
+                "曹魏", "蜀汉", "东吴", 
+                "西晋", "东晋",
+                "北魏", "东魏", "西魏", 
+                "北齐", "南齐",  # 调整齐的顺序
+                "南梁", "北周", "陈", 
+                "隋朝", "唐朝", 
+                "后梁", "后唐", "后晋", "后汉", "后周", 
+                "北宋", "南宋", 
+                "辽", "金", 
+                "元朝", "明朝", "大顺", "南明", "清朝"
             ]
             
             def get_dynasty_order(dynasty):
@@ -1808,9 +1843,9 @@ class EmperorApp:
                 return 1
             start, end = reign_period.split('-')
             if '前' in start:
-                start_year = -int(''.join(filter(str.isdigit, start)))
+                return -int(''.join(filter(str.isdigit, start)))
             else:
-                start_year = int(''.join(filter(str.isdigit, start)))
+                return int(''.join(filter(str.isdigit, start)))
             if '前' in end:
                 end_year = -int(''.join(filter(str.isdigit, end)))
             else:
