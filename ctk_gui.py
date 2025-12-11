@@ -1008,7 +1008,7 @@ class EmperorApp:
             from ai_chat_window import AIChatWindow
             # 🚀 结束优化 4
 
-            api_key = 'sk-4aeed6dd7d344b05b79d6ade0bb1a95b' 
+            api_key = '别偷了' 
             self.chat_window = AIChatWindow(self.root, api_key)
             
             # 为聊天窗口设置图标 - 使用多次延迟设置
