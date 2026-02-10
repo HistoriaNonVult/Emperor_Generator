@@ -2,27 +2,35 @@
 import tkinter as tk
 from tkinter import ttk, scrolledtext, filedialog, messagebox
 import customtkinter as ctk
-from openai import OpenAI
 import threading
 import webbrowser
 import os
 import sys
+import json
+import ssl
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 from config import WINDOW_WIDTH, WINDOW_HEIGHT
 
+# DeepSeek API 地址（与 OpenAI 兼容格式）
+DEEPSEEK_CHAT_URL = "https://api.deepseek.com/v1/chat/completions"
+
 class AIChatWindow:
-    def __init__(self, parent, api_key):
-        """初始化聊天窗口"""
+    def __init__(self, parent, api_key, initial_question=None, send_immediately=False):
+        """初始化聊天窗口。initial_question 若提供则预填到输入框；send_immediately 为 True 则预填后自动发送。"""
         self.parent = parent
-        self.client = OpenAI(
-            api_key=api_key,
-            base_url="https://api.deepseek.com"
-        )
+        self.api_key = api_key
         # 添加对话历史列表
         self.conversation_history = []
         
         # 创建窗口
         self.window = tk.Toplevel(parent)
-        self.window.title("AI历史顾问（请保持网络连接)")
+        # 设置 Tcl/Tk 使用 UTF-8，避免在 Windows 上显示中文时出现 ascii 编码错误
+        try:
+            self.window.tk.call('encoding', 'system', 'utf-8')
+        except Exception:
+            pass
+        self.window.title("AI历史顾问（请保持网络连接）")
         self.window.geometry("490x700")  # 更小的窗口尺寸
         
         # 设置窗口背景色为暖色调
@@ -33,6 +41,12 @@ class AIChatWindow:
         
         # 绑定事件
         self._bind_events()
+        
+        if initial_question and initial_question.strip():
+            self._set_initial_question(initial_question.strip())
+            if send_immediately:
+                q = initial_question.strip()
+                self.window.after(80, lambda: self._send_message_with_text(q))
         
         # 设置图标
         self.has_icon = False
@@ -80,7 +94,7 @@ class AIChatWindow:
             pady=8
         )
         self.chat_display.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
-        
+
         # 添加右键菜单绑定
         self.chat_display.bind("<Button-3>", self.show_context_menu)  # Windows右键
         self.chat_display.bind("<Button-2>", self.show_context_menu)  # Mac右键
@@ -161,28 +175,37 @@ class AIChatWindow:
         self.window.bind('<Down>', lambda e: self._move_window('down'))
     
     def _send_message(self):
-        """发送消息"""
+        """发送消息（从输入框读取内容）"""
         message = self.message_entry.get().strip()
         if not message:
             return
-            
-        # 防止重复发送
+        self._clear_message_entry()
+        self._send_message_with_text(message)
+
+    def _send_message_with_text(self, message):
+        """直接发送指定文本，不依赖输入框（用于「询问AI」等程序触发发送）；发送后清空输入框。"""
+        if not message or not str(message).strip():
+            return
+        message = str(message).strip()
         if self.send_button.cget('state') == 'disabled':
             return
-            
+        try:
+            self.message_entry.delete(0, "end")
+        except Exception:
+            try:
+                n = len(self.message_entry.get())
+                if n:
+                    self.message_entry.delete(0, n)
+            except Exception:
+                pass
         self._set_input_state(tk.DISABLED)
-        self.message_entry.delete(0, tk.END)
         self._update_display(f"你: {message}\n", 'user')
-        
-        # 使用守护线程发送消息
         send_thread = threading.Thread(
             target=self._get_ai_response,
             args=(message,),
             daemon=True
         )
         send_thread.start()
-        
-        # 添加超时检查
         self.window.after(40000, self._check_response_timeout, send_thread)
     
     def _check_response_timeout(self, thread):
@@ -192,50 +215,88 @@ class AIChatWindow:
             self._set_input_state(tk.NORMAL)
     
     def _get_ai_response(self, message):
-        """获取AI响应（流式版本）"""
+        """获取AI响应（流式版本）：用 HTTP + 显式 UTF-8 请求，避免 Windows 下 ascii 编码错误"""
+        # HTTP 头仅支持 latin-1，API Key 必须为纯 ASCII
+        api_key_ascii = ''.join(c for c in (self.api_key or '') if ord(c) < 128).strip()
+        if not api_key_ascii:
+            self._update_display("错误: 未配置有效 API Key。请在程序目录的 api_key.txt 中填入 DeepSeek API Key（仅英文/数字）。\n", 'error')
+            self._set_input_state(tk.NORMAL)
+            return
         try:
-            # 初始化流式消息标记
             self._update_display("AI: ", 'ai_stream')
-            
-            # 构建消息历史
+
             messages = [
                 {
                     "role": "system",
-                    "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度、历史评价、同时期中西方对比等问题。要求客观、理性，请用中文回答，不要使用markdown格式，只使用普通文本。"
+                    "content": "你是一位专精于中国历史的AI顾问，特别擅长解答关于历代皇帝、年号、政治制度、历史评价、同时期中西方对比等问题。要求客观、理性，请用中文回答，不要使用 markdown 格式，只使用普通文本。"
                 }
             ]
-            temperature = 0.9
-            messages.extend(self.conversation_history[-4:])  # 保留最近4轮对话
-            
-            # 添加当前用户消息
+            messages.extend(self.conversation_history[-4:])
             messages.append({"role": "user", "content": message})
-            
-            # 发起流式请求
-            response_stream = self.client.chat.completions.create(
-                model="deepseek-chat",
-                messages=messages,
-                stream=True,
-                timeout=15
+
+            # 使用 ensure_ascii=False 保留中文，再显式按 UTF-8 编码，避免库内 ascii 编码
+            payload = {
+                "model": "deepseek-chat",
+                "messages": messages,
+                "stream": True,
+                "temperature": 0.9,
+            }
+            body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
+
+            req = Request(
+                DEEPSEEK_CHAT_URL,
+                data=body,
+                headers={
+                    "Content-Type": "application/json; charset=utf-8",
+                    "Authorization": "Bearer " + api_key_ascii,
+                },
+                method="POST",
             )
+            # 使用 SSL 默认上下文，避免证书问题
+            ctx = ssl.create_default_context()
+            resp = urlopen(req, timeout=20, context=ctx)
 
             full_response = ""
-            # 处理流式响应
-            for chunk in response_stream:
-                chunk_content = chunk.choices[0].delta.content
-                if chunk_content:
-                    full_response += chunk_content
-                    self._update_display(chunk_content, 'ai_stream', append=True)
+            buf = b""
+            while True:
+                chunk = resp.read(4096)
+                if not chunk:
+                    break
+                buf += chunk
+                while b"\n" in buf or b"\r\n" in buf:
+                    line, _, buf = buf.partition(b"\n")
+                    line = line.strip()
+                    if not line or line == b"data: [DONE]":
+                        continue
+                    if line.startswith(b"data: "):
+                        try:
+                            part = line[6:].decode("utf-8")
+                            obj = json.loads(part)
+                            delta = obj.get("choices", [{}])[0].get("delta", {})
+                            content = delta.get("content") or ""
+                            if content:
+                                full_response += content
+                                self._update_display(content, 'ai_stream', append=True)
+                        except (json.JSONDecodeError, KeyError, UnicodeDecodeError):
+                            pass
 
-            # 保存对话历史
             self.conversation_history.append({"role": "user", "content": message})
             self.conversation_history.append({"role": "assistant", "content": full_response})
-            
-            # 最终处理
             self._update_display("\n\n", 'ai_stream', append=True)
             return full_response
 
-        except Exception as e:
-            error_msg = f"错误: {str(e)}\n" if str(e) else "发送失败，请重试\n"
+        except HTTPError as e:
+            try:
+                err_body = e.read().decode("utf-8", errors="replace")
+                error_msg = f"错误: API 返回 {e.code} - {err_body[:200]}\n"
+            except Exception:
+                error_msg = f"错误: API 返回 {e.code}\n"
+            self._update_display(error_msg, 'error')
+        except (URLError, OSError, Exception) as e:
+            try:
+                error_msg = f"错误: {str(e)}\n" if str(e) else "发送失败，请重试\n"
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                error_msg = "错误: 请求失败，请检查网络与 API 设置后重试。\n"
             self._update_display(error_msg, 'error')
         finally:
             self._set_input_state(tk.NORMAL)
@@ -244,29 +305,19 @@ class AIChatWindow:
         """更新聊天显示（支持流式模式）"""
         def _update():
             self.chat_display.config(state=tk.NORMAL)
-            
-            # 颜色配置（新增ai_stream类型）
             color_palette = {
-                'user': '#8B4513',    # 深棕色
-                'ai': '#5C4033',      # 中棕色
-                'error': '#CD5C5C',   # 暖红色
-                'ai_stream': '#5C4033' 
+                'user': '#8B4513',
+                'ai': '#5C4033',
+                'error': '#CD5C5C',
+                'ai_stream': '#5C4033'
             }
-            
-            # 自动创建标签样式
             tag_name = f'msg_{msg_type}'
             if tag_name not in self.chat_display.tag_names():
-                self.chat_display.tag_config(
-                    tag_name, 
-                    foreground=color_palette.get(msg_type, '#000000')
-                )
+                self.chat_display.tag_config(tag_name, foreground=color_palette.get(msg_type, '#000000'))
 
-            # 流式内容处理逻辑
             if append:
-                # 直接追加内容
                 self.chat_display.insert(tk.END, text, tag_name)
             else:
-                # 非流式内容添加换行分隔
                 if self.chat_display.index(tk.END) != "1.0":
                     self.chat_display.insert(tk.END, "\n")
                 self.chat_display.insert(tk.END, text, tag_name)
@@ -274,12 +325,58 @@ class AIChatWindow:
             self.chat_display.config(state=tk.DISABLED)
             self.chat_display.see(tk.END)
 
-        # 线程安全处理
         if threading.current_thread() is threading.main_thread():
             _update()
         else:
             self.window.after(0, _update)
     
+    def _set_initial_question(self, text):
+        """预填输入框内容（仅清空一次，不触发延迟清空）。"""
+        try:
+            try:
+                self.message_entry.delete(0, "end")
+            except Exception:
+                n = len(self.message_entry.get())
+                if n:
+                    self.message_entry.delete(0, n)
+            if text:
+                self.message_entry.insert(0, text)
+        except Exception:
+            pass
+
+    def set_initial_question(self, text):
+        """供外部调用：预填输入框并拉前窗口。"""
+        if text and str(text).strip():
+            self._set_initial_question(str(text).strip())
+        self.window.lift()
+        self.window.focus_force()
+
+    def send_question(self, text):
+        """供外部调用：直接发送指定问题（不依赖输入框）。"""
+        if not text or not str(text).strip():
+            self.window.lift()
+            self.window.focus_force()
+            return
+        self.window.lift()
+        self.window.focus_force()
+        self._send_message_with_text(str(text).strip())
+
+    def _clear_message_entry(self):
+        """清空输入框内容（兼容 CTkEntry 多种版本）"""
+        def _do_clear():
+            try:
+                self.message_entry.delete(0, "end")
+            except Exception:
+                try:
+                    n = len(self.message_entry.get())
+                    if n > 0:
+                        self.message_entry.delete(0, n)
+                except Exception:
+                    pass
+        _do_clear()
+        # 延迟再清一次，确保禁用/启用后显示已更新
+        self.window.after(50, _do_clear)
+
     def _set_input_state(self, state):
         """设置输入状态"""
         def _update():

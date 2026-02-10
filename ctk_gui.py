@@ -1,4 +1,22 @@
 # -*- coding: utf-8 -*-
+# Windows 下尝试使用 UTF-8，避免处理中文时出现编码错误（失败也不影响启动）
+import sys
+import io
+if sys.platform == 'win32':
+    try:
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8')
+        if hasattr(sys.stderr, 'reconfigure'):
+            sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        try:
+            if hasattr(sys.stdout, 'buffer'):
+                sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+            if hasattr(sys.stderr, 'buffer'):
+                sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
 import random
 import re
 import tkinter as tk
@@ -959,46 +977,116 @@ class EmperorApp:
             except Exception as e2:
                 print(f"备用方法也失败: {e2}")
 
-    def create_popup(self, title, width=480, height=300):
+    def create_popup(self, title, width=480, height=300, delay_show=False):
+        """创建弹窗。delay_show=True 时先对底层窗口设透明并 withdraw，杜绝左上角残影。"""
         popup = ctk.CTkToplevel(self.root)
+        if delay_show:
+            tw = None
+            try:
+                tw = popup.winfo_toplevel()
+                if tw and tw != self.root:
+                    tw.attributes('-alpha', 0)
+                    tw.wm_withdraw()
+            except Exception:
+                pass
+            if tw is None or tw == self.root:
+                try:
+                    popup.attributes('-alpha', 0)
+                    if hasattr(popup, 'withdraw'):
+                        popup.withdraw()
+                except Exception:
+                    pass
+        popup.geometry(f"{width}x{height}")
         if self.is_traditional:
             title = self.convert_text(title, True)
         popup.title(title)
-        popup.geometry(f"{width}x{height}")
         popup.resizable(False, False)
-        
         # 为弹窗设置图标 - 使用多次延迟设置防止被覆盖
         if self.icon_path and os.path.exists(self.icon_path):
             try:
-                # 立即尝试设置一次
                 self._set_icon_for_toplevel(popup)
-                # 然后在窗口完全加载后再次设置
                 popup.after(10, lambda: self._set_icon_for_toplevel(popup))
                 popup.after(100, lambda: self._set_icon_for_toplevel(popup))
-                # 再延迟设置一次，确保不被其他操作覆盖
                 popup.after(500, lambda: self._set_icon_for_toplevel(popup))
             except Exception as e:
                 print(f"为弹窗设置图标失败: {e}")
-        
-        # 确保弹窗在前台显示
-        popup.lift()
-        popup.focus_force()
-        popup.grab_set()  # 添加模态特性，防止用户与主窗口交互
-        
-        # 保存对图标路径的引用，防止被垃圾回收
+        if not delay_show:
+            popup.lift()
+            popup.focus_force()
+            popup.grab_set()
         popup.icon_path_ref = self.icon_path
-        
         return popup
 
-    def show_chat_window(self):
+    def _show_popup(self, popup):
+        """先对底层 toplevel 设好居中位置并强制处理，再延后一帧 deiconify（且先透明），避免左上角残影。"""
+        try:
+            popup.update_idletasks()
+            root_x = self.root.winfo_x()
+            root_y = self.root.winfo_y()
+            root_w = self.root.winfo_width()
+            root_h = self.root.winfo_height()
+            popup_w = popup.winfo_reqwidth()
+            popup_h = popup.winfo_reqheight()
+            x = root_x + max(0, (root_w - popup_w) // 2)
+            y = root_y + max(0, (root_h - popup_h) // 2)
+            geom = f"+{x}+{y}"
+            popup.geometry(geom)
+            tw = None
+            try:
+                tw = popup.winfo_toplevel()
+                if tw and tw != self.root:
+                    tw.geometry(geom)
+                    tw.update_idletasks()
+            except Exception:
+                pass
+            try:
+                popup.attributes('-alpha', 0)
+            except Exception:
+                pass
+            def _do_deiconify():
+                try:
+                    if tw and tw != self.root:
+                        tw.wm_deiconify()
+                    else:
+                        popup.deiconify()
+                except Exception:
+                    try:
+                        popup.deiconify()
+                    except Exception:
+                        pass
+            popup.after(1, _do_deiconify)
+            def _then_show():
+                try:
+                    if tw and tw != self.root:
+                        tw.attributes('-alpha', 1.0)
+                    popup.attributes('-alpha', 1.0)
+                    popup.lift()
+                    popup.focus_force()
+                    popup.grab_set()
+                except Exception:
+                    pass
+            popup.after(250, _then_show)
+        except Exception:
+            pass
+
+    def show_chat_window(self, initial_text=None, send_immediately=False):
+        """打开或激活 AI 聊天窗口。initial_text 若提供则预填；send_immediately 为 True 则预填后直接发送。"""
         if not self._check_if_ready():
             return
             
         if hasattr(self, 'chat_window') and self.chat_window is not None:
             try:
                 if self.chat_window.window.winfo_exists():
-                    self.chat_window.window.lift()
-                    self.chat_window.window.focus_force()
+                    if initial_text and str(initial_text).strip():
+                        if send_immediately:
+                            self.chat_window.send_question(str(initial_text).strip())
+                        else:
+                            self.chat_window.set_initial_question(str(initial_text).strip())
+                            self.chat_window.window.lift()
+                            self.chat_window.window.focus_force()
+                    else:
+                        self.chat_window.window.lift()
+                        self.chat_window.window.focus_force()
                     return
             except AttributeError:
                 self.chat_window = None
@@ -1008,8 +1096,26 @@ class EmperorApp:
             from ai_chat_window import AIChatWindow
             # 🚀 结束优化 4
 
-            api_key = '别偷了' 
-            self.chat_window = AIChatWindow(self.root, api_key)
+            # 从 api_key.txt 读取 DeepSeek API Key（UTF-8）
+            api_key = ''
+            try:
+                if getattr(sys, 'frozen', False):
+                    base_dir = os.path.dirname(sys.executable)
+                else:
+                    base_dir = os.path.dirname(os.path.abspath(__file__))
+                key_path = os.path.join(base_dir, 'api_key.txt')
+                if os.path.exists(key_path):
+                    with open(key_path, 'r', encoding='utf-8') as f:
+                        api_key = (f.read() or '').strip().strip('\ufeff')
+            except Exception:
+                pass
+            if not api_key:
+                messagebox.showwarning("API Key 未配置", "请在本程序目录下的 api_key.txt 中填入您的 DeepSeek API Key（仅 ASCII 字符）。")
+            self.chat_window = AIChatWindow(
+                self.root, api_key or '',
+                initial_question=initial_text or '',
+                send_immediately=bool(send_immediately and (initial_text or '').strip())
+            )
             
             # 为聊天窗口设置图标 - 使用多次延迟设置
             if hasattr(self.chat_window, 'window') and self.icon_path and os.path.exists(self.icon_path):
@@ -1160,10 +1266,16 @@ class EmperorApp:
         if not self._check_if_ready():
             return
             
-        dialog = self.create_popup("高级搜索" if not self.is_traditional else "進階搜索", width=380, height=520)  # 增加高度以适应更大字体
-        
-        search_frame = ctk.CTkFrame(dialog, fg_color='#FFFFFF')
-        search_frame.pack(fill="x", padx=12, pady=6)
+        dialog = self.create_popup("高级搜索" if not self.is_traditional else "進階搜索", width=420, height=750, delay_show=True)
+        dialog.configure(fg_color='#FFF8F3')
+
+        title_text = "按条件筛选皇帝" if not self.is_traditional else "按條件篩選皇帝"
+        title_label = ctk.CTkLabel(dialog, text=title_text, font=('微软雅黑', 16, 'bold'), text_color='#8B4513')
+        title_label.pack(pady=(16, 10))
+
+        search_frame = ctk.CTkFrame(dialog, fg_color='#FFFAF5', corner_radius=10, border_width=1, border_color='#E8DCC8')
+        search_frame.pack(fill="x", padx=16, pady=(0, 12))
+        ctk.CTkLabel(search_frame, text="  " + ("搜索条件" if not self.is_traditional else "搜索條件") + "  ", font=('微软雅黑', 13), text_color='#6B4423').pack(anchor="w", padx=10, pady=(8, 4))
         
         fields = {
             'dynasty': '朝代',
@@ -1177,25 +1289,27 @@ class EmperorApp:
         
         entries = {}
         for key, label in fields.items():
-            frame = ctk.CTkFrame(search_frame, fg_color='#FFFFFF')
-            frame.pack(fill="x", pady=3)
-            ctk.CTkLabel(frame, text=f"{label}：", font=('微软雅黑', 14), text_color='#2B1B17', width=96, anchor="e").pack(side="left", padx=6)  # 原11，放大到14
-            entry = ctk.CTkEntry(frame, font=('微软雅黑', 14), fg_color='#FFF8DC', text_color='#2B1B17')  # 原11，放大到14
-            entry.pack(side="left", fill="x", expand=True, padx=6)
+            frame = ctk.CTkFrame(search_frame, fg_color='transparent')
+            frame.pack(fill="x", padx=10, pady=4)
+            ctk.CTkLabel(frame, text=f"{label}：", font=('微软雅黑', 13), text_color='#5C4033', width=88, anchor="e").pack(side="left", padx=(0, 8))
+            entry = ctk.CTkEntry(frame, font=('微软雅黑', 13), height=32, fg_color='#FFF8DC', text_color='#2B1B17', border_color='#D4C4A8', corner_radius=6)
+            entry.pack(side="left", fill="x", expand=True)
             entries[key] = entry
         
-        options_frame = ctk.CTkFrame(dialog, fg_color='#FFFFFF')
-        options_frame.pack(fill="x", padx=12, pady=6)
+        options_frame = ctk.CTkFrame(dialog, fg_color='#FFFAF5', corner_radius=10, border_width=1, border_color='#E8DCC8')
+        options_frame.pack(fill="x", padx=16, pady=(0, 12))
+        ctk.CTkLabel(options_frame, text="  " + ("匹配与选项" if not self.is_traditional else "匹配與選項") + "  ", font=('微软雅黑', 13), text_color='#6B4423').pack(anchor="w", padx=10, pady=(8, 4))
         
         match_var = ctk.StringVar(value="any")
-        ctk.CTkRadioButton(options_frame, text="匹配任意条件" if not self.is_traditional else "匹配任意條件", variable=match_var, value="any", font=('微软雅黑', 14), text_color='#2B1B17').pack(anchor="w")  # 原11，放大到14
-        ctk.CTkRadioButton(options_frame, text="匹配所有条件" if not self.is_traditional else "匹配所有條件", variable=match_var, value="all", font=('微软雅黑', 14), text_color='#2B1B17').pack(anchor="w")  # 原11，放大到14
+        ctk.CTkRadioButton(options_frame, text="匹配任意条件" if not self.is_traditional else "匹配任意條件", variable=match_var, value="any", font=('微软雅黑', 13), text_color='#5C4033').pack(anchor="w", padx=10, pady=2)
+        ctk.CTkRadioButton(options_frame, text="匹配所有条件" if not self.is_traditional else "匹配所有條件", variable=match_var, value="all", font=('微软雅黑', 13), text_color='#5C4033').pack(anchor="w", padx=10, pady=2)
         
-        case_sensitive = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(options_frame, text="区分大小写" if not self.is_traditional else "區分大小寫", variable=case_sensitive, font=('微软雅黑', 14), text_color='#2B1B17').pack(anchor="w")  # 原11，放大到14
+        distinguish_fan_jian = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(options_frame, text="区分繁简体" if not self.is_traditional else "區分繁簡體", variable=distinguish_fan_jian, font=('微软雅黑', 13), text_color='#5C4033').pack(anchor="w", padx=10, pady=(2, 8))
         
-        sort_frame = ctk.CTkFrame(dialog, fg_color='#FFFFFF')
-        sort_frame.pack(fill="x", padx=12, pady=6)
+        sort_frame = ctk.CTkFrame(dialog, fg_color='#FFFAF5', corner_radius=10, border_width=1, border_color='#E8DCC8')
+        sort_frame.pack(fill="x", padx=16, pady=(0, 12))
+        ctk.CTkLabel(sort_frame, text="  " + ("排序方式" if not self.is_traditional else "排序方式") + "  ", font=('微软雅黑', 13), text_color='#6B4423').pack(anchor="w", padx=10, pady=(8, 4))
         
         self.sort_var = ctk.StringVar(value='dynasty')
         sort_options = [
@@ -1212,27 +1326,29 @@ class EmperorApp:
         
         self.sort_buttons = []
         for text, value in sort_options:
-            rb = ctk.CTkRadioButton(sort_frame, text=text, variable=self.sort_var, value=value, font=('微软雅黑', 14), text_color='#2B1B17')  # 原11，放大到14
-            rb.pack(anchor="w", pady=3)
+            rb = ctk.CTkRadioButton(sort_frame, text=text, variable=self.sort_var, value=value, font=('微软雅黑', 13), text_color='#5C4033')
+            rb.pack(anchor="w", padx=10, pady=3)
             self.sort_buttons.append(rb)
         
         def do_search():
             criteria = {k: v.get().strip() for k, v in entries.items()}
-            results = self.advanced_search(criteria, match_all=match_var.get() == "all", case_sensitive=case_sensitive.get())
+            results = self.advanced_search(criteria, match_all=match_var.get() == "all", distinguish_fan_jian=distinguish_fan_jian.get())
             sorted_results = self.sort_results(results, self.sort_var.get())
             self.display_search_results(sorted_results)
             dialog.destroy()
         
-        button_frame = ctk.CTkFrame(dialog, fg_color='#FFFFFF')
-        button_frame.pack(fill="x", padx=12, pady=12)
+        button_frame = ctk.CTkFrame(dialog, fg_color='transparent')
+        button_frame.pack(fill="x", padx=16, pady=(4, 16))
         
-        search_btn = ctk.CTkButton(button_frame, text="搜索" if not self.is_traditional else "搜索", command=do_search, font=('微软雅黑', 14), fg_color='#F5E6CB', text_color='#8B2323', hover_color='#DAA520')  # 原11，放大到14
-        search_btn.pack(side="right")
+        search_btn = ctk.CTkButton(button_frame, text="搜索" if not self.is_traditional else "搜索", command=do_search, font=('微软雅黑', 14, 'bold'), height=36, fg_color='#8B4513', text_color='#FFF8DC', hover_color='#A0522D', corner_radius=8)
+        search_btn.pack(side="right", padx=(8, 0))
         
-        cancel_btn = ctk.CTkButton(button_frame, text="取消" if not self.is_traditional else "取消", command=dialog.destroy, font=('微软雅黑', 14), fg_color='#F5E6CB', text_color='#8B2323', hover_color='#DAA520')  # 原11，放大到14
-        cancel_btn.pack(side="right", padx=6)
+        cancel_btn = ctk.CTkButton(button_frame, text="取消" if not self.is_traditional else "取消", command=dialog.destroy, font=('微软雅黑', 14), height=36, fg_color='#D4C4A8', text_color='#5C4033', hover_color='#C4B498', corner_radius=8)
+        cancel_btn.pack(side="right")
 
-    def advanced_search(self, criteria, match_all=False, case_sensitive=False):
+        self._show_popup(dialog)
+
+    def advanced_search(self, criteria, match_all=False, distinguish_fan_jian=False):
         results = []
         valid_criteria = {k: v for k, v in criteria.items() if v}
         if not valid_criteria:
@@ -1242,6 +1358,9 @@ class EmperorApp:
             matches = []
             for field, search_term in valid_criteria.items():
                 value = str(emperor.get(field, ''))
+                if not distinguish_fan_jian:
+                    value = self.convert_text(value, False)
+                    search_term = self.convert_text(search_term, False)
                 if field == 'reign_period':
                     try:
                         if '-' in search_term:
@@ -1255,14 +1374,8 @@ class EmperorApp:
                             reign_start = reign_end = int(reign_period.replace('年', ''))
                         match = not (search_end < reign_start or search_start > reign_end)
                     except (ValueError, IndexError):
-                        if not case_sensitive:
-                            value = value.lower()
-                            search_term = search_term.lower()
                         match = search_term in value
                 else:
-                    if not case_sensitive:
-                        value = value.lower()
-                        search_term = search_term.lower()
                     if '*' in search_term or '?' in search_term:
                         match = fnmatch.fnmatch(value, search_term)
                     else:
@@ -1862,17 +1975,41 @@ class EmperorApp:
         sys.exit()  # 确保程序完全退出
 
     def create_context_menu(self):
-        """创建右键菜单"""
+        """创建右键菜单；选中文本已存于 self._context_menu_selected_text。"""
         menu = tk.Menu(self.root, tearoff=0)
         menu.add_command(
             label="导出数据" if not self.is_traditional else "導出數據",
             command=self.export_data,
             font=("微软雅黑", 12)
         )
+        ask_ai_label = "询问AI" if not self.is_traditional else "詢問AI"
+        def _ask_ai():
+            selected = getattr(self, "_context_menu_selected_text", "") or ""
+            if selected.strip():
+                prompt = ("请介绍或解释以下内容：\n\n" + selected.strip()) if not self.is_traditional else ("請介紹或解釋以下內容：\n\n" + selected.strip())
+                self.show_chat_window(initial_text=prompt, send_immediately=True)
+            else:
+                self.show_chat_window()
+        menu.add_command(
+            label=ask_ai_label,
+            command=_ask_ai,
+            font=("微软雅黑", 12)
+        )
         return menu
 
     def show_context_menu(self, event):
-        """显示右键菜单"""
+        """显示右键菜单；右键时立即用 tag_ranges('sel') 取选中并保存，再弹出菜单。"""
+        selected = ""
+        try:
+            r = self.display_text.tag_ranges("sel")
+            if r and len(r) >= 2:
+                selected = self.display_text.get(r[0], r[1]).strip()
+        except Exception:
+            try:
+                selected = self.display_text.get(tk.SEL_FIRST, tk.SEL_LAST).strip()
+            except tk.TclError:
+                pass
+        self._context_menu_selected_text = selected
         menu = self.create_context_menu()
         try:
             menu.tk_popup(event.x_root, event.y_root)
@@ -1994,6 +2131,11 @@ def main():
     pre_checked_google_access = check_google_access_on_startup()
     
     root = ctk.CTk()
+    # 设置 Tk 使用 UTF-8，避免 AI 聊天等界面在 Windows 上出现 ascii 编码错误
+    try:
+        root.tk.call('encoding', 'system', 'utf-8')
+    except Exception:
+        pass
     app = EmperorApp(root, can_access_google=pre_checked_google_access) # 传递结果
     root.mainloop()
 
