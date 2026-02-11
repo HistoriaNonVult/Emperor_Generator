@@ -1099,14 +1099,22 @@ class EmperorApp:
             # 从 api_key.txt 读取 DeepSeek API Key（UTF-8）
             api_key = ''
             try:
+                # 优先从 exe 所在目录读取（方便用户自定义）
+                # 然后从打包资源目录读取（内置默认值）
+                possible_dirs = []
                 if getattr(sys, 'frozen', False):
-                    base_dir = os.path.dirname(sys.executable)
+                    possible_dirs.append(os.path.dirname(sys.executable))  # exe 所在目录
+                    possible_dirs.append(sys._MEIPASS)  # 打包资源目录
                 else:
-                    base_dir = os.path.dirname(os.path.abspath(__file__))
-                key_path = os.path.join(base_dir, 'api_key.txt')
-                if os.path.exists(key_path):
-                    with open(key_path, 'r', encoding='utf-8') as f:
-                        api_key = (f.read() or '').strip().strip('\ufeff')
+                    possible_dirs.append(os.path.dirname(os.path.abspath(__file__)))
+                
+                for base_dir in possible_dirs:
+                    key_path = os.path.join(base_dir, 'api_key.txt')
+                    if os.path.exists(key_path):
+                        with open(key_path, 'r', encoding='utf-8') as f:
+                            api_key = (f.read() or '').strip().strip('\ufeff')
+                        if api_key:
+                            break
             except Exception:
                 pass
             if not api_key:
